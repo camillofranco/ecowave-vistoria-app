@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import logo from '../assets/logo.png';
 import { Sparkles, RefreshCw, X, CheckCircle2, Zap, AlertCircle } from 'lucide-react';
 
@@ -14,46 +14,53 @@ interface RemoteVersionData {
 const Header: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [remoteData, setRemoteData] = useState<RemoteVersionData | null>(null);
   const [hasNewUpdate, setHasNewUpdate] = useState(false);
 
-  // Verifica automaticamente se existe uma versão mais recente na nuvem ao abrir o app
-  useEffect(() => {
-    const checkUpdates = async () => {
-      try {
-        const response = await fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' });
-        if (response.ok) {
-          const data: RemoteVersionData = await response.json();
-          setRemoteData(data);
+  const checkUpdates = useCallback(async (manual = false) => {
+    setChecking(true);
+    try {
+      const response = await fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (response.ok) {
+        const data: RemoteVersionData = await response.json();
+        setRemoteData(data);
 
-          const installedVersion = localStorage.getItem('ecowave_installed_version') || CURRENT_LOCAL_VERSION;
-          
-          // Se a versão na nuvem for diferente da instalada localmente, abre o pop-up automaticamente
-          if (data.version !== installedVersion) {
-            setHasNewUpdate(true);
-            setShowModal(true);
-          }
+        // Compara a versão remota com a versão embutida no app
+        const isNewer = data.version !== CURRENT_LOCAL_VERSION;
+        setHasNewUpdate(isNewer);
+
+        // Abre automaticamente se for uma nova versão não instalada
+        if (isNewer && !manual) {
+          setShowModal(true);
         }
-      } catch (e) {
-        console.log('Verificação offline ou sem internet');
       }
-    };
-
-    checkUpdates();
+    } catch (e) {
+      console.log('Verificação offline');
+    } finally {
+      setChecking(false);
+    }
   }, []);
 
-  const handleUpdate = () => {
+  // Checagem automática ao abrir o app
+  useEffect(() => {
+    checkUpdates(false);
+  }, [checkUpdates]);
+
+  const handleOpenModal = () => {
+    checkUpdates(true);
+    setShowModal(true);
+  };
+
+  const handleApplyUpdate = () => {
     setUpdating(true);
     setTimeout(async () => {
       try {
-        // Grava a nova versão como instalada
         if (remoteData?.version) {
           localStorage.setItem('ecowave_installed_version', remoteData.version);
-        } else {
-          localStorage.setItem('ecowave_installed_version', CURRENT_LOCAL_VERSION);
         }
 
-        // Limpa todos os caches de arquivos
+        // Limpeza profunda de caches
         if ('caches' in window) {
           const names = await caches.keys();
           await Promise.all(names.map(name => caches.delete(name)));
@@ -96,7 +103,7 @@ const Header: React.FC = () => {
         top: 0,
         zIndex: 100
       }}>
-        {/* Logo EcoWave à esquerda */}
+        {/* Logo EcoWave */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <img 
             src={logo} 
@@ -109,9 +116,9 @@ const Header: React.FC = () => {
           />
         </div>
         
-        {/* Botão Intuitivo de Atualizações & Novidades com indicador visual */}
+        {/* Botão de Atualizações com status */}
         <button 
-          onClick={() => setShowModal(true)}
+          onClick={handleOpenModal}
           style={{
             backgroundColor: hasNewUpdate ? '#10b981' : 'rgba(45, 138, 60, 0.1)',
             color: hasNewUpdate ? '#ffffff' : 'var(--primary)',
@@ -129,14 +136,14 @@ const Header: React.FC = () => {
             boxShadow: hasNewUpdate ? '0 0 10px rgba(16, 185, 129, 0.5)' : 'none',
             transition: 'all 0.3s ease'
           }}
-          title="Ver Novidades e Atualizar"
+          title="Verificar Atualizações"
         >
           <Sparkles size={14} color={hasNewUpdate ? '#ffffff' : 'var(--primary)'} />
-          <span>{hasNewUpdate ? 'Nova Versão!' : 'Atualizações'}</span>
+          <span>{hasNewUpdate ? 'Nova Versão!' : `v${CURRENT_LOCAL_VERSION}`}</span>
         </button>
       </header>
 
-      {/* Pop-up / Modal de Novidades e Atualização */}
+      {/* Pop-up / Modal */}
       {showModal && (
         <div 
           style={{
@@ -168,7 +175,7 @@ const Header: React.FC = () => {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Botão Fechar no topo */}
+            {/* Fechar */}
             {!updating && (
               <button 
                 onClick={() => setShowModal(false)}
@@ -189,7 +196,7 @@ const Header: React.FC = () => {
               </button>
             )}
 
-            {/* Cabeçalho do Pop-up */}
+            {/* Cabeçalho */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1rem' }}>
               <div style={{
                 backgroundColor: hasNewUpdate ? 'rgba(16, 185, 129, 0.15)' : 'rgba(45, 138, 60, 0.15)',
@@ -207,7 +214,7 @@ const Header: React.FC = () => {
                   {hasNewUpdate ? '🎉 Nova Atualização Disponível!' : 'Central de Atualizações'}
                 </h3>
                 <span style={{ fontSize: '0.8rem', color: hasNewUpdate ? '#10b981' : 'var(--primary)', fontWeight: 'bold' }}>
-                  Versão {remoteData?.version || CURRENT_LOCAL_VERSION}
+                  {hasNewUpdate ? `Nova Versão: v${remoteData?.version}` : `Versão Atual: v${CURRENT_LOCAL_VERSION}`}
                 </span>
               </div>
             </div>
@@ -226,24 +233,27 @@ const Header: React.FC = () => {
                 color: '#10b981',
                 fontSize: '0.8rem'
               }}>
-                <AlertCircle size={16} />
-                <span>Uma versão mais recente com melhorias está pronta para uso.</span>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>Uma versão mais recente com novidades está pronta para ser instalada.</span>
               </div>
             ) : (
               <div style={{
-                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                border: '1px solid rgba(59, 130, 246, 0.25)',
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
                 padding: '0.75rem',
                 borderRadius: '10px',
                 marginBottom: '1rem',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                color: '#60a5fa',
-                fontSize: '0.8rem'
+                color: '#10b981',
+                fontSize: '0.85rem'
               }}>
-                <CheckCircle2 size={16} />
-                <span>Seu aplicativo está na versão mais recente disponível.</span>
+                <CheckCircle2 size={20} color="#10b981" style={{ flexShrink: 0 }} />
+                <div>
+                  <strong style={{ display: 'block' }}>Aplicativo 100% Atualizado!</strong>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Você já está usando a versão mais recente (v{CURRENT_LOCAL_VERSION}).</span>
+                </div>
               </div>
             )}
 
@@ -254,11 +264,11 @@ const Header: React.FC = () => {
               borderRadius: '12px',
               border: '1px solid var(--border)',
               marginBottom: '1.25rem',
-              maxHeight: '220px',
+              maxHeight: '200px',
               overflowY: 'auto'
             }}>
               <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Novidades Desta Versão:
+                {hasNewUpdate ? 'Novidades Desta Nova Versão:' : 'Melhorias Desta Versão:'}
               </h4>
               <ul style={{ margin: 0, paddingLeft: '0', listStyle: 'none' }}>
                 {changelogItems.map((item, idx) => (
@@ -278,34 +288,78 @@ const Header: React.FC = () => {
               </ul>
             </div>
 
-            {/* Ações */}
+            {/* Ações Inteligentes */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <button 
-                onClick={handleUpdate}
-                disabled={updating}
-                style={{
-                  backgroundColor: hasNewUpdate ? '#10b981' : 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  fontWeight: '600',
-                  padding: '12px',
-                  fontSize: '0.95rem'
-                }}
-              >
-                <RefreshCw size={18} className={updating ? 'spin' : ''} />
-                <span>{updating ? 'Atualizando Aplicativo...' : hasNewUpdate ? '🚀 Aplicar Nova Atualização Agora' : 'Recarregar Aplicativo'}</span>
-              </button>
+              {hasNewUpdate ? (
+                <>
+                  <button 
+                    onClick={handleApplyUpdate}
+                    disabled={updating}
+                    style={{
+                      backgroundColor: '#10b981',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      fontWeight: '600',
+                      padding: '12px',
+                      fontSize: '0.95rem'
+                    }}
+                  >
+                    <RefreshCw size={18} className={updating ? 'spin' : ''} />
+                    <span>{updating ? 'Instalando Atualização...' : '🚀 Instalar Nova Versão Agora'}</span>
+                  </button>
 
-              {!updating && (
-                <button 
-                  onClick={() => setShowModal(false)}
-                  className="secondary"
-                  style={{ margin: 0, border: 'none', background: 'transparent', color: 'var(--text-muted)' }}
-                >
-                  {hasNewUpdate ? 'Atualizar Mais Tarde' : 'Fechar'}
-                </button>
+                  {!updating && (
+                    <button 
+                      onClick={() => setShowModal(false)}
+                      className="secondary"
+                      style={{ margin: 0, border: 'none', background: 'transparent', color: 'var(--text-muted)' }}
+                    >
+                      Lembrar Mais Tarde
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => setShowModal(false)}
+                    style={{
+                      backgroundColor: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      fontWeight: '600',
+                      padding: '12px',
+                      fontSize: '0.95rem'
+                    }}
+                  >
+                    <CheckCircle2 size={18} />
+                    <span>Entendido, Continuar</span>
+                  </button>
+
+                  <button 
+                    onClick={handleApplyUpdate}
+                    disabled={updating || checking}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                      padding: '6px',
+                      margin: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <RefreshCw size={12} className={updating || checking ? 'spin' : ''} />
+                    <span>Forçar Verificação na Nuvem</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
