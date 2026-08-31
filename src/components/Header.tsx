@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import logo from '../assets/logo.png';
 import { Sparkles, RefreshCw, X, CheckCircle2, Zap, AlertCircle } from 'lucide-react';
 
-const CURRENT_LOCAL_VERSION = '1.3.0';
+const CURRENT_LOCAL_VERSION = '1.4.0';
 
 interface RemoteVersionData {
   version: string;
@@ -26,8 +26,9 @@ const Header: React.FC = () => {
         const data: RemoteVersionData = await response.json();
         setRemoteData(data);
 
-        // Compara a versão remota com a versão embutida no app
-        const isNewer = data.version !== CURRENT_LOCAL_VERSION;
+        // Compara a versão remota com a instalada
+        const savedVersion = localStorage.getItem('ecowave_installed_version') || CURRENT_LOCAL_VERSION;
+        const isNewer = data.version !== savedVersion && data.version !== CURRENT_LOCAL_VERSION;
         setHasNewUpdate(isNewer);
 
         // Abre automaticamente se for uma nova versão não instalada
@@ -52,32 +53,33 @@ const Header: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleApplyUpdate = () => {
+  const handleApplyUpdate = async () => {
     setUpdating(true);
-    setTimeout(async () => {
-      try {
-        if (remoteData?.version) {
-          localStorage.setItem('ecowave_installed_version', remoteData.version);
-        }
-
-        // Limpeza profunda de caches
-        if ('caches' in window) {
-          const names = await caches.keys();
-          await Promise.all(names.map(name => caches.delete(name)));
-        }
-
-        if ('serviceWorker' in navigator) {
-          const registrations = await navigator.serviceWorker.getRegistrations();
-          for (let reg of registrations) {
-            await reg.unregister();
-          }
-        }
-
-        window.location.href = window.location.origin + window.location.pathname + '?t=' + Date.now();
-      } catch {
-        window.location.reload();
+    try {
+      if (remoteData?.version) {
+        localStorage.setItem('ecowave_installed_version', remoteData.version);
+      } else {
+        localStorage.setItem('ecowave_installed_version', '1.4.0');
       }
-    }, 600);
+
+      if ('caches' in window) {
+        const names = await caches.keys();
+        await Promise.all(names.map(name => caches.delete(name)));
+      }
+
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (let reg of registrations) {
+          await reg.unregister();
+        }
+      }
+    } catch (e) {
+      console.log('Erro ao limpar cache', e);
+    }
+
+    setTimeout(() => {
+      window.location.reload();
+    }, 400);
   };
 
   const changelogItems = remoteData?.changelog || [
