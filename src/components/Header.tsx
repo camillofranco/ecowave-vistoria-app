@@ -2,15 +2,16 @@ import React, { useState } from 'react';
 import logo from '../assets/logo.png';
 import { Sparkles, RefreshCw, X, CheckCircle2, Zap } from 'lucide-react';
 
-const CURRENT_VERSION = 'v1.2.0';
+const CURRENT_VERSION = 'v1.3.0';
 
 const CHANGELOG = [
-  'Novo fluxo de vistoria em etapas organizadas e intuitivas',
-  'Seleção de Tipo de Vistoria (Alto Consumo, Geral, Troca, Vazamento) e Sub-seleção',
-  'Visualizador de fotos em tela cheia com zoom ao tocar na imagem',
-  'Laudo Técnico em PDF com fotos 3x maiores e diagramação executiva',
-  'Compressão inteligente de imagens para máxima velocidade e economia de memória',
-  'Envio Casado oficial: PDF + Vídeos de teste de estanqueidade e vazamentos'
+  'Live Updates ativo: Atualizações pelo botão sem precisar reinstalar o APK',
+  'Nomenclatura de engenharia: AF (Água Fria), AQ (Água Quente) e Gás',
+  'Combinações completas de utilidades (AF, AQ, Gás, AF e AQ, AF e Gás, etc.)',
+  'Novo fluxo especializado para Troca de Equipamentos (Medidor, Transmissor ou Completa)',
+  'Campos e fotos independentes para hidrômetros de AF e AQ',
+  'Visualizador de fotos em tela cheia com zoom',
+  'Laudo em PDF com fotos 3x maiores e tabelas separadas por medidor'
 ];
 
 const Header: React.FC = () => {
