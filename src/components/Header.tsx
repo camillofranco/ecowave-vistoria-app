@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import logo from '../assets/logo.png';
-import { Sparkles, RefreshCw, X, CheckCircle2, Zap, AlertCircle } from 'lucide-react';
+import { Sparkles, RefreshCw, X, CheckCircle2, Zap, AlertCircle, Sun, Moon, Laptop } from 'lucide-react';
 
-const CURRENT_LOCAL_VERSION = '1.4.0';
+const CURRENT_LOCAL_VERSION = '1.5.0';
+
+type ThemeMode = 'system' | 'light' | 'dark';
 
 interface RemoteVersionData {
   version: string;
@@ -17,6 +19,44 @@ const Header: React.FC = () => {
   const [checking, setChecking] = useState(false);
   const [remoteData, setRemoteData] = useState<RemoteVersionData | null>(null);
   const [hasNewUpdate, setHasNewUpdate] = useState(false);
+
+  // Gerenciamento de Tema (Sistema, Claro, Escuro)
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    return (localStorage.getItem('ecowave_theme') as ThemeMode) || 'system';
+  });
+
+  useEffect(() => {
+    const applyTheme = () => {
+      localStorage.setItem('ecowave_theme', theme);
+      if (theme === 'light') {
+        document.body.className = 'theme-light';
+      } else if (theme === 'dark') {
+        document.body.className = 'theme-dark';
+      } else {
+        const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.body.className = isSystemDark ? 'theme-dark' : 'theme-light';
+      }
+    };
+
+    applyTheme();
+
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const listener = (e: MediaQueryListEvent) => {
+        document.body.className = e.matches ? 'theme-dark' : 'theme-light';
+      };
+      mediaQuery.addEventListener('change', listener);
+      return () => mediaQuery.removeEventListener('change', listener);
+    }
+  }, [theme]);
+
+  const cycleTheme = () => {
+    setTheme(current => {
+      if (current === 'system') return 'light';
+      if (current === 'light') return 'dark';
+      return 'system';
+    });
+  };
 
   const checkUpdates = useCallback(async (manual = false) => {
     setChecking(true);
@@ -59,7 +99,7 @@ const Header: React.FC = () => {
       if (remoteData?.version) {
         localStorage.setItem('ecowave_installed_version', remoteData.version);
       } else {
-        localStorage.setItem('ecowave_installed_version', '1.4.0');
+        localStorage.setItem('ecowave_installed_version', CURRENT_LOCAL_VERSION);
       }
 
       if ('caches' in window) {
@@ -83,18 +123,18 @@ const Header: React.FC = () => {
   };
 
   const changelogItems = remoteData?.changelog || [
+    'Seletor de Tema: escolha entre Modo Claro, Escuro ou Automático do Sistema',
+    'Transições visuais suaves entre os modos de cor',
+    'Atualização com 1 clique sem bugs ou oscilação de tela',
     'Nomenclatura técnica de engenharia: AF (Água Fria), AQ (Água Quente) e Gás',
     'Combinações completas de utilidades (AF, AQ, Gás, AF e AQ, AF e Gás, etc.)',
-    'Novo fluxo especializado para Troca de Equipamentos (Medidor, Transmissor ou Completa)',
-    'Campos e fotos independentes para hidrômetros de AF e AQ',
-    'Visualizador de fotos em tela cheia com zoom ao tocar na foto',
-    'Laudo em PDF com fotos 3x maiores e tabelas separadas por medidor'
+    'Novo fluxo especializado para Troca de Equipamentos (Medidor, Transmissor ou Completa)'
   ];
 
   return (
     <>
       <header style={{ 
-        backgroundColor: '#ffffff',
+        backgroundColor: 'var(--header-bg)',
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'space-between', 
@@ -103,7 +143,8 @@ const Header: React.FC = () => {
         margin: '-1rem -1rem 1.5rem -1rem',
         position: 'sticky',
         top: 0,
-        zIndex: 100
+        zIndex: 100,
+        transition: 'background-color 0.25s ease'
       }}>
         {/* Logo EcoWave */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -118,31 +159,61 @@ const Header: React.FC = () => {
           />
         </div>
         
-        {/* Botão de Atualizações com status */}
-        <button 
-          onClick={handleOpenModal}
-          className={hasNewUpdate ? 'update-badge-glow' : ''}
-          style={{
-            backgroundColor: hasNewUpdate ? '#10b981' : 'rgba(45, 138, 60, 0.1)',
-            color: hasNewUpdate ? '#ffffff' : 'var(--primary)',
-            border: hasNewUpdate ? 'none' : '1px solid rgba(45, 138, 60, 0.25)',
-            padding: '6px 12px',
-            borderRadius: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '0.75rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-            margin: 0,
-            width: 'auto',
-            transition: 'all 0.3s ease'
-          }}
-          title="Verificar Atualizações"
-        >
-          <Sparkles size={14} color={hasNewUpdate ? '#ffffff' : 'var(--primary)'} />
-          <span>{hasNewUpdate ? 'Nova Versão Disponível!' : `v${CURRENT_LOCAL_VERSION}`}</span>
-        </button>
+        {/* Controles no Topo Direito: Tema + Atualizações */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Botão Seletor de Tema */}
+          <button
+            onClick={cycleTheme}
+            style={{
+              backgroundColor: 'var(--surface)',
+              color: 'var(--text)',
+              border: '1px solid var(--border)',
+              padding: '6px 10px',
+              borderRadius: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '0.75rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              margin: 0,
+              width: 'auto',
+              transition: 'all 0.2s ease'
+            }}
+            title={`Tema: ${theme === 'system' ? 'Automático (Sistema)' : theme === 'light' ? 'Claro' : 'Escuro'}`}
+          >
+            {theme === 'system' && <Laptop size={14} color="var(--primary)" />}
+            {theme === 'light' && <Sun size={14} color="#f59e0b" />}
+            {theme === 'dark' && <Moon size={14} color="#60a5fa" />}
+            <span>{theme === 'system' ? 'Auto' : theme === 'light' ? 'Claro' : 'Escuro'}</span>
+          </button>
+
+          {/* Botão de Atualizações com status */}
+          <button 
+            onClick={handleOpenModal}
+            className={hasNewUpdate ? 'update-badge-glow' : ''}
+            style={{
+              backgroundColor: hasNewUpdate ? '#10b981' : 'rgba(45, 138, 60, 0.1)',
+              color: hasNewUpdate ? '#ffffff' : 'var(--primary)',
+              border: hasNewUpdate ? 'none' : '1px solid rgba(45, 138, 60, 0.25)',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.75rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              margin: 0,
+              width: 'auto',
+              transition: 'all 0.3s ease'
+            }}
+            title="Verificar Atualizações"
+          >
+            <Sparkles size={14} color={hasNewUpdate ? '#ffffff' : 'var(--primary)'} />
+            <span>{hasNewUpdate ? 'Nova Versão!' : `v${CURRENT_LOCAL_VERSION}`}</span>
+          </button>
+        </div>
       </header>
 
       {/* Pop-up / Modal */}
@@ -236,7 +307,7 @@ const Header: React.FC = () => {
                 fontSize: '0.8rem'
               }}>
                 <AlertCircle size={18} style={{ flexShrink: 0 }} />
-                <span>Uma versão mais recente com novidades está pronta para ser instalada.</span>
+                <span>Uma versão mais recente com o novo Seletor de Temas está pronta!</span>
               </div>
             ) : (
               <div style={{

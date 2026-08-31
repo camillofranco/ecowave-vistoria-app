@@ -5,10 +5,6 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #0f172a; /* Slate 900 */
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -18,16 +14,43 @@
   --primary: #3b82f6; /* Blue 500 */
   --primary-hover: #2563eb;
   --secondary: #64748b; /* Slate 500 */
+  --success: #10b981;
+  --error: #ef4444;
+  --warning: #f59e0b;
+  --radius: 12px;
+
+  /* Tema Escuro (Padrão) */
   --background: #0f172a;
   --surface: #1e293b; /* Slate 800 */
   --surface-hover: #334155;
   --text: #f8fafc;
   --text-muted: #94a3b8;
-  --success: #10b981;
-  --error: #ef4444;
-  --warning: #f59e0b;
   --border: #334155;
-  --radius: 12px;
+  --header-bg: #1e293b;
+}
+
+body.theme-light {
+  --background: #f1f5f9;
+  --surface: #ffffff;
+  --surface-hover: #f8fafc;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --border: #cbd5e1;
+  --header-bg: #ffffff;
+  background-color: var(--background) !important;
+  color: var(--text) !important;
+}
+
+body.theme-dark {
+  --background: #0f172a;
+  --surface: #1e293b;
+  --surface-hover: #334155;
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+  --border: #334155;
+  --header-bg: #1e293b;
+  background-color: var(--background) !important;
+  color: var(--text) !important;
 }
 
 * {
@@ -42,6 +65,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background-color: var(--background);
+  color: var(--text);
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 #root {

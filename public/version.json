@@ -1,15 +1,12 @@
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "releaseDate": "31/08/2026",
-  "title": "Atualização EcoWave v1.4.0 Disponível",
+  "title": "Atualização EcoWave v1.5.0 - Seletor de Tema",
   "changelog": [
-    "Nova Central de Notificações com pop-up automático de novidades na abertura do app",
-    "Botão com efeito de pulso e brilho (Glow) indicando versão disponível",
-    "Nomenclatura técnica de engenharia: AF (Água Fria), AQ (Água Quente) e Gás",
-    "Combinações completas de utilidades (AF, AQ, Gás, AF e AQ, AF e Gás, etc.)",
-    "Novo fluxo especializado para Troca de Equipamentos (Medidor, Transmissor ou Completa)",
-    "Campos e fotos independentes para hidrômetros de AF e AQ",
-    "Visualizador de fotos em tela cheia com zoom",
-    "Laudo em PDF com fotos 3x maiores e tabelas separadas por medidor"
+    "Novo Seletor de Tema no topo: Modo Claro ☀️, Modo Escuro 🌙 e Automático do Sistema ⚙️",
+    "Atualização rápida e suave com 1 clique (sem oscilações na tela)",
+    "Nomenclatura técnica oficial de engenharia: AF (Água Fria), AQ (Água Quente) e Gás",
+    "Combinações completas de utilidades e fluxo especializado para Troca de Equipamento",
+    "Laudo em PDF com fotos 3x maiores e tabelas executivas independentes por medidor"
   ]
 }
