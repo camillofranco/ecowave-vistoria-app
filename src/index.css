@@ -151,6 +151,7 @@ label {
   border-radius: var(--radius);
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
 .form-group {
@@ -168,10 +169,20 @@ label {
   position: relative;
   width: 100%;
   aspect-ratio: 4/3;
-  background-color: #000;
+  background-color: var(--background);
   border-radius: var(--radius);
   overflow: hidden;
   margin-bottom: 1rem;
+  border: 2px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.photo-container:hover {
+  border-color: var(--primary);
+  background-color: var(--surface-hover);
 }
 
 .photo-preview {
@@ -188,6 +199,8 @@ label {
   justify-content: center;
   color: var(--text-muted);
   gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
 }
 
 /* Animations */

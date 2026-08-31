@@ -1,12 +1,10 @@
 {
-  "version": "1.5.0",
+  "version": "1.6.0",
   "releaseDate": "31/08/2026",
-  "title": "Atualização EcoWave v1.5.0 - Seletor de Tema",
+  "title": "Atualização EcoWave v1.6.0 - Ajuste Fino Visual",
   "changelog": [
-    "Novo Seletor de Tema no topo: Modo Claro ☀️, Modo Escuro 🌙 e Automático do Sistema ⚙️",
-    "Atualização rápida e suave com 1 clique (sem oscilações na tela)",
-    "Nomenclatura técnica oficial de engenharia: AF (Água Fria), AQ (Água Quente) e Gás",
-    "Combinações completas de utilidades e fluxo especializado para Troca de Equipamento",
-    "Laudo em PDF com fotos 3x maiores e tabelas executivas independentes por medidor"
+    "Ajuste fino no Tema Claro: Caixas de captura de fotos com fundo e bordas adaptativas",
+    "Harmonização visual completa em todos os passos da vistoria",
+    "Novo Seletor de Tema no topo: Claro ☀️, Escuro 🌙 e Sistema ⚙️"
   ]
 }
