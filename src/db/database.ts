@@ -38,10 +38,14 @@ export interface VerificacaoInterna {
 }
 
 export interface DadosGerais {
-  estado_medidor_agua?: string;
+  estado_medidor_agua?: string; // Medidor AF
   imagem_medidor_agua?: string;
   serial_medidor_agua?: string;
   imagem_serial_agua?: string;
+  estado_medidor_aq?: string; // Medidor AQ
+  imagem_medidor_aq?: string;
+  serial_medidor_aq?: string;
+  imagem_serial_aq?: string;
   estado_medidor_gas?: string;
   imagem_medidor_gas?: string;
   serial_medidor_gas?: string;

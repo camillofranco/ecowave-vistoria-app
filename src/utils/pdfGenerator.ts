@@ -78,13 +78,17 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
   doc.text(`Bloco: ${v.bloco} | Unidade: ${v.unidade}`, margin + 5, 87);
   doc.text(`Técnico: ${v.tecnico}`, margin + 5, 94);
   
-  const isWater = !v.subtipo_vistoria
+  const isAF = !v.subtipo_vistoria
     ? (v.tipo_vistoria === 'agua' || v.tipo_vistoria === 'agua_gas' || v.tipo_vistoria === 'ponto_consumo' || !v.tipo_vistoria)
-    : (v.subtipo_vistoria === 'Água' || v.subtipo_vistoria === 'Água e Gás' || v.subtipo_vistoria.startsWith('Troca'));
-  
+    : (v.subtipo_vistoria.includes('AF') || v.subtipo_vistoria.includes('Água'));
+
+  const isAQ = v.subtipo_vistoria ? v.subtipo_vistoria.includes('AQ') : false;
+
   const isGas = !v.subtipo_vistoria
     ? (v.tipo_vistoria === 'gas' || v.tipo_vistoria === 'agua_gas')
-    : (v.subtipo_vistoria === 'Gás' || v.subtipo_vistoria === 'Água e Gás');
+    : (v.subtipo_vistoria.includes('Gás') || v.subtipo_vistoria.includes('gas'));
+
+  const isWater = isAF || isAQ;
 
   const tipoExibicao = `${v.tipo_vistoria || ''}${v.subtipo_vistoria ? ` - ${v.subtipo_vistoria}` : ''}`.toUpperCase();
   doc.setFont('helvetica', 'bold');
@@ -124,14 +128,34 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
   doc.text('PARÂMETROS TÉCNICOS E STATUS', margin, currentY);
   
   const dg = v.dados_gerais;
-  const statusRows: any[] = [
-    [
-      { content: 'STATUS DO MEDIDOR', styles: { fontStyle: 'bold' as const, textColor: 100 } },
+  const statusRows: any[] = [];
+
+  if (isAF) {
+    statusRows.push([
+      { content: 'STATUS MEDIDOR AF', styles: { fontStyle: 'bold' as const, textColor: 100 } },
       { content: dg.estado_medidor_agua?.toUpperCase() || '-', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
-      { content: 'Nº SÉRIE HIDRÔMETRO', styles: { fontStyle: 'bold' as const, textColor: 100 } },
+      { content: 'Nº SÉRIE HIDRÔMETRO AF', styles: { fontStyle: 'bold' as const, textColor: 100 } },
       { content: dg.serial_medidor_agua || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const } }
-    ]
-  ];
+    ]);
+  }
+
+  if (isAQ) {
+    statusRows.push([
+      { content: 'STATUS MEDIDOR AQ', styles: { fontStyle: 'bold' as const, textColor: 100 } },
+      { content: dg.estado_medidor_aq?.toUpperCase() || '-', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
+      { content: 'Nº SÉRIE HIDRÔMETRO AQ', styles: { fontStyle: 'bold' as const, textColor: 100 } },
+      { content: dg.serial_medidor_aq || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const } }
+    ]);
+  }
+
+  if (isGas) {
+    statusRows.push([
+      { content: 'STATUS MEDIDOR GÁS', styles: { fontStyle: 'bold' as const, textColor: 100 } },
+      { content: dg.estado_medidor_gas?.toUpperCase() || '-', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
+      { content: 'Nº SÉRIE MEDIDOR GÁS', styles: { fontStyle: 'bold' as const, textColor: 100 } },
+      { content: dg.serial_medidor_gas || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const } }
+    ]);
+  }
 
   if (isWater) {
     statusRows.push([
@@ -142,8 +166,8 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
     ]);
   }
 
-  // Só adiciona linha de aquecimento se não for apenas água ou se tiver aquecimento
-  if ((!isWater || isGas) && dg.sistema_aquecimento) {
+  // Só adiciona linha de aquecimento se houver AQ, Gás ou se marcado
+  if ((isAQ || isGas || dg.sistema_aquecimento) && dg.sistema_aquecimento) {
     statusRows.push([
       { content: 'SISTEMA AQUECIMENTO', styles: { fontStyle: 'bold' as const, textColor: 100 } },
       { content: dg.tipo_aquecimento?.toUpperCase() || 'ATIVO', styles: { fontStyle: 'bold' as const } },
@@ -154,7 +178,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
 
   // Adiciona Temperatura e Pressão apenas se preenchidos
   const extraRow: any[] = [];
-  if (dg.temperatura_agua_quente) extraRow.push({ content: 'TEMP. ÁGUA', styles: { fontStyle: 'bold' as const, textColor: 100 } }, { content: `${dg.temperatura_agua_quente}°C`, styles: { fontStyle: 'bold' as const } });
+  if (dg.temperatura_agua_quente) extraRow.push({ content: 'TEMP. AQ', styles: { fontStyle: 'bold' as const, textColor: 100 } }, { content: `${dg.temperatura_agua_quente}°C`, styles: { fontStyle: 'bold' as const } });
   if (dg.pressao_agua) extraRow.push({ content: 'PRESSÃO', styles: { fontStyle: 'bold' as const, textColor: 100 } }, { content: `${dg.pressao_agua} MCA`, styles: { fontStyle: 'bold' as const } });
   
   // Garante que a linha tenha 4 colunas para não quebrar o layout
@@ -164,15 +188,16 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
   
   if (extraRow.length > 0) statusRows.push(extraRow);
 
-  autoTable(doc, {
-    startY: currentY + 5,
-    margin: { left: margin, right: margin },
-    theme: 'plain',
-    body: statusRows,
-    styles: { fontSize: 9, cellPadding: 4 },
-  });
-
-  currentY = (doc as any).lastAutoTable.finalY + 15;
+  if (statusRows.length > 0) {
+    autoTable(doc, {
+      startY: currentY + 5,
+      margin: { left: margin, right: margin },
+      theme: 'plain',
+      body: statusRows,
+      styles: { fontSize: 9, cellPadding: 4 },
+    });
+    currentY = (doc as any).lastAutoTable.finalY + 15;
+  }
 
   // 3.5 Checklist de Verificações (Novo)
   if (isWater && dg.verificacoes_internas?.length > 0) {
@@ -273,8 +298,10 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
   });
 
   if (v.ponto_consumo?.imagem_recipiente) addImageToDoc(v.ponto_consumo.imagem_recipiente, 'Ponto de Consumo');
-  if (dg.imagem_medidor_agua) addImageToDoc(dg.imagem_medidor_agua, 'Medidor de Água');
-  if (dg.imagem_serial_agua) addImageToDoc(dg.imagem_serial_agua, 'Serial do Hidrômetro');
+  if (dg.imagem_medidor_agua) addImageToDoc(dg.imagem_medidor_agua, 'Medidor AF (Água Fria)');
+  if (dg.imagem_serial_agua) addImageToDoc(dg.imagem_serial_agua, 'Serial do Hidrômetro AF');
+  if (dg.imagem_medidor_aq) addImageToDoc(dg.imagem_medidor_aq, 'Medidor AQ (Água Quente)');
+  if (dg.imagem_serial_aq) addImageToDoc(dg.imagem_serial_aq, 'Serial do Hidrômetro AQ');
   if (dg.imagem_medidor_gas) addImageToDoc(dg.imagem_medidor_gas, 'Medidor de Gás');
   if (dg.imagem_serial_gas) addImageToDoc(dg.imagem_serial_gas, 'Serial Medidor Gás');
   if (dg.imagem_aquecimento) addImageToDoc(dg.imagem_aquecimento, 'Sistema de Aquecimento');

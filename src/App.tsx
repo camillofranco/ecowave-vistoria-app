@@ -26,19 +26,33 @@ export const TIPOS_VISTORIA = [
   'Vazamento'
 ] as const;
 
-export const SUBTIPOS_POR_TIPO: Record<string, string[]> = {
-  'Alto Consumo': ['Água', 'Gás', 'Água e Gás'],
-  'Geral': ['Água', 'Gás', 'Água e Gás'],
-  'Troca de Equipamento': ['Troca de Medidor', 'Troca de Transmissor', 'Troca Completa'],
-  'Vazamento': ['Água', 'Gás', 'Água e Gás']
-};
+export const SISTEMAS_UTILIDADE = [
+  'AF',
+  'AQ',
+  'Gás',
+  'AF e AQ',
+  'AF e Gás',
+  'AQ e Gás',
+  'AF, AQ e Gás'
+] as const;
 
-export const isTipoAgua = (v: Partial<Vistoria>) => {
+export const TIPOS_TROCA = [
+  'Troca de Medidor',
+  'Troca de Transmissor',
+  'Troca Completa'
+] as const;
+
+export const isTipoAF = (v: Partial<Vistoria>) => {
   const subtipo = v.subtipo_vistoria;
   if (!subtipo) {
     return v.tipo_vistoria === 'agua' || v.tipo_vistoria === 'agua_gas' || v.tipo_vistoria === 'ponto_consumo' || !v.tipo_vistoria;
   }
-  return subtipo === 'Água' || subtipo === 'Água e Gás' || subtipo.startsWith('Troca');
+  return subtipo.includes('AF') || subtipo.includes('Água');
+};
+
+export const isTipoAQ = (v: Partial<Vistoria>) => {
+  const subtipo = v.subtipo_vistoria;
+  return subtipo ? subtipo.includes('AQ') : false;
 };
 
 export const isTipoGas = (v: Partial<Vistoria>) => {
@@ -46,14 +60,18 @@ export const isTipoGas = (v: Partial<Vistoria>) => {
   if (!subtipo) {
     return v.tipo_vistoria === 'gas' || v.tipo_vistoria === 'agua_gas';
   }
-  return subtipo === 'Gás' || subtipo === 'Água e Gás';
+  return subtipo.includes('Gás') || subtipo.includes('gas');
+};
+
+export const isTipoAgua = (v: Partial<Vistoria>) => {
+  return isTipoAF(v) || isTipoAQ(v);
 };
 
 const INITIAL_VISTORIA: Partial<Vistoria> = {
   data: format(new Date(), 'yyyy-MM-dd'),
   hora: format(new Date(), 'HH:mm'),
   tipo_vistoria: 'Alto Consumo',
-  subtipo_vistoria: 'Água',
+  subtipo_vistoria: 'AF',
   testes: [
     { leitura_antes: '', leitura_depois: '', diferenca: 0, litros_recipiente: '', imagens: {} },
     { leitura_antes: '', leitura_depois: '', diferenca: 0, litros_recipiente: '', imagens: {} }
@@ -360,43 +378,95 @@ export default function App() {
               <input type="text" placeholder="Nome do Morador/Responsável" value={vistoria.responsavel_unidade} onChange={e => handleUpdate('responsavel_unidade', e.target.value)} />
             </div>
             
-            <div className="grid-2">
-              <div className="form-group">
-                <label>Tipo de Vistoria</label>
-                <select 
-                  value={vistoria.tipo_vistoria || 'Alto Consumo'} 
-                  onChange={e => {
-                    const novoTipo = e.target.value;
-                    const subtiposPossiveis = SUBTIPOS_POR_TIPO[novoTipo] || ['Água'];
-                    const novoSubtipo = subtiposPossiveis.includes(vistoria.subtipo_vistoria || '') 
-                      ? vistoria.subtipo_vistoria 
-                      : subtiposPossiveis[0];
-                    
-                    setVistoria(prev => ({
-                      ...prev,
-                      tipo_vistoria: novoTipo,
-                      subtipo_vistoria: novoSubtipo
-                    }));
-                  }}
-                >
-                  {TIPOS_VISTORIA.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
+            {vistoria.tipo_vistoria === 'Troca de Equipamento' ? (
+              <>
+                <div className="form-group">
+                  <label>Tipo de Vistoria</label>
+                  <select 
+                    value={vistoria.tipo_vistoria} 
+                    onChange={e => {
+                      const novoTipo = e.target.value;
+                      setVistoria(prev => ({
+                        ...prev,
+                        tipo_vistoria: novoTipo,
+                        subtipo_vistoria: novoTipo === 'Troca de Equipamento' ? 'Troca de Medidor - AF' : 'AF'
+                      }));
+                    }}
+                  >
+                    {TIPOS_VISTORIA.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div className="form-group">
-                <label>Sub-seleção</label>
-                <select 
-                  value={vistoria.subtipo_vistoria || (SUBTIPOS_POR_TIPO[vistoria.tipo_vistoria || 'Alto Consumo']?.[0] || 'Água')} 
-                  onChange={e => handleUpdate('subtipo_vistoria', e.target.value)}
-                >
-                  {(SUBTIPOS_POR_TIPO[vistoria.tipo_vistoria || 'Alto Consumo'] || ['Água', 'Gás', 'Água e Gás']).map(sub => (
-                    <option key={sub} value={sub}>{sub}</option>
-                  ))}
-                </select>
+                <div className="grid-2">
+                  <div className="form-group">
+                    <label>Equipamento a Trocar</label>
+                    <select 
+                      value={vistoria.subtipo_vistoria?.split(' - ')?.[0] || 'Troca de Medidor'} 
+                      onChange={e => {
+                        const equip = e.target.value;
+                        const sistema = vistoria.subtipo_vistoria?.split(' - ')?.[1] || 'AF';
+                        handleUpdate('subtipo_vistoria', `${equip} - ${sistema}`);
+                      }}
+                    >
+                      {TIPOS_TROCA.map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Sistema / Fluido</label>
+                    <select 
+                      value={vistoria.subtipo_vistoria?.split(' - ')?.[1] || 'AF'} 
+                      onChange={e => {
+                        const equip = vistoria.subtipo_vistoria?.split(' - ')?.[0] || 'Troca de Medidor';
+                        const sistema = e.target.value;
+                        handleUpdate('subtipo_vistoria', `${equip} - ${sistema}`);
+                      }}
+                    >
+                      {SISTEMAS_UTILIDADE.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="grid-2">
+                <div className="form-group">
+                  <label>Tipo de Vistoria</label>
+                  <select 
+                    value={vistoria.tipo_vistoria || 'Alto Consumo'} 
+                    onChange={e => {
+                      const novoTipo = e.target.value;
+                      setVistoria(prev => ({
+                        ...prev,
+                        tipo_vistoria: novoTipo,
+                        subtipo_vistoria: novoTipo === 'Troca de Equipamento' ? 'Troca de Medidor - AF' : 'AF'
+                      }));
+                    }}
+                  >
+                    {TIPOS_VISTORIA.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Sistema (Sub-seleção)</label>
+                  <select 
+                    value={vistoria.subtipo_vistoria || 'AF'} 
+                    onChange={e => handleUpdate('subtipo_vistoria', e.target.value)}
+                  >
+                    {SISTEMAS_UTILIDADE.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
+            )}
 
             <button onClick={() => {
               // Atualiza data/hora no momento exato do início
@@ -677,13 +747,13 @@ export default function App() {
           <div className="card">
             <h2>Medidores & Sistemas</h2>
             
-            {/* Medidor de Água */}
-            {isTipoAgua(vistoria) && (
+            {/* Medidor de AF (Água Fria) */}
+            {isTipoAF(vistoria) && (
               <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1.25rem' }}>
-                <h3 style={{ fontSize: '1.1rem', color: 'var(--primary)', marginBottom: '1rem' }}>Medidor de Água (Hidrômetro)</h3>
+                <h3 style={{ fontSize: '1.1rem', color: 'var(--primary)', marginBottom: '1rem' }}>Medidor de AF (Água Fria)</h3>
                 <div className="grid-2">
                   <div className="form-group">
-                    <label>Estado Geral</label>
+                    <label>Estado Geral AF</label>
                     <select 
                       value={vistoria.dados_gerais?.estado_medidor_agua || ''} 
                       onChange={e => handleUpdate('dados_gerais.estado_medidor_agua', e.target.value)}
@@ -697,7 +767,7 @@ export default function App() {
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Nº Série (Opcional)</label>
+                    <label>Nº Série AF (Opcional)</label>
                     <input 
                       type="text" 
                       placeholder="Ex: H12345"
@@ -708,55 +778,97 @@ export default function App() {
                 </div>
                 <div className="grid-2">
                   <CameraInput 
-                    label="Foto Medidor" 
+                    label="Foto Medidor AF" 
                     onPhotoTaken={b => handleUpdate('dados_gerais.imagem_medidor_agua', b)} 
                     initialValue={vistoria.dados_gerais?.imagem_medidor_agua}
                   />
                   <CameraInput 
-                    label="Foto do Serial" 
+                    label="Foto Serial AF" 
                     onPhotoTaken={b => handleUpdate('dados_gerais.imagem_serial_agua', b)} 
                     initialValue={vistoria.dados_gerais?.imagem_serial_agua}
                   />
                 </div>
 
                 {/* Teste de Estanqueidade */}
-                {isTipoAgua(vistoria) && (
-                  <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginTop: '1rem', border: '1px solid var(--border)' }}>
-                    <h4 style={{ fontSize: '0.9rem', margin: '0 0 0.75rem 0' }}>Teste de Estanqueidade (Relógio Parado)</h4>
-                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                      <input 
-                        type="checkbox" 
-                        id="relogio_parado_chk"
-                        style={{ width: 'auto', marginBottom: 0 }} 
-                        checked={vistoria.dados_gerais?.relogio_parado_verificado || false}
-                        onChange={e => handleUpdate('dados_gerais.relogio_parado_verificado', e.target.checked)}
-                      />
-                      <label htmlFor="relogio_parado_chk" style={{ marginBottom: 0, fontWeight: '500' }}>Confirmo que o medidor está parado</label>
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Vídeo de Prova (Máx 10s)</label>
-                      <input 
-                        type="file" 
-                        accept="video/*" 
-                        capture="environment"
-                        style={{ padding: '8px', fontSize: '0.8rem', height: 'auto', backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => handleUpdate('dados_gerais.video_relogio_parado', reader.result);
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                      />
-                      {vistoria.dados_gerais?.video_relogio_parado && (
-                        <div style={{ color: 'var(--success)', fontSize: '0.75rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <CheckCircle2 size={12} /> Vídeo de Estanqueidade Anexado
-                        </div>
-                      )}
-                    </div>
+                <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginTop: '1rem', border: '1px solid var(--border)' }}>
+                  <h4 style={{ fontSize: '0.9rem', margin: '0 0 0.75rem 0' }}>Teste de Estanqueidade (Relógio Parado AF)</h4>
+                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <input 
+                      type="checkbox" 
+                      id="relogio_parado_chk"
+                      style={{ width: 'auto', marginBottom: 0 }} 
+                      checked={vistoria.dados_gerais?.relogio_parado_verificado || false}
+                      onChange={e => handleUpdate('dados_gerais.relogio_parado_verificado', e.target.checked)}
+                    />
+                    <label htmlFor="relogio_parado_chk" style={{ marginBottom: 0, fontWeight: '500' }}>Confirmo que o medidor está parado</label>
                   </div>
-                )}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Vídeo de Prova (Máx 10s)</label>
+                    <input 
+                      type="file" 
+                      accept="video/*" 
+                      capture="environment"
+                      style={{ padding: '8px', fontSize: '0.8rem', height: 'auto', backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => handleUpdate('dados_gerais.video_relogio_parado', reader.result);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    {vistoria.dados_gerais?.video_relogio_parado && (
+                      <div style={{ color: 'var(--success)', fontSize: '0.75rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <CheckCircle2 size={12} /> Vídeo de Estanqueidade Anexado
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Medidor de AQ (Água Quente) */}
+            {isTipoAQ(vistoria) && (
+              <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1.25rem' }}>
+                <h3 style={{ fontSize: '1.1rem', color: 'var(--primary)', marginBottom: '1rem' }}>Medidor de AQ (Água Quente)</h3>
+                <div className="grid-2">
+                  <div className="form-group">
+                    <label>Estado Geral AQ</label>
+                    <select 
+                      value={vistoria.dados_gerais?.estado_medidor_aq || ''} 
+                      onChange={e => handleUpdate('dados_gerais.estado_medidor_aq', e.target.value)}
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="otimo">Ótimo</option>
+                      <option value="bom">Bom</option>
+                      <option value="regular">Regular</option>
+                      <option value="ruim">Ruim</option>
+                      <option value="critico">Crítico</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Nº Série AQ (Opcional)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: AQ12345"
+                      value={vistoria.dados_gerais?.serial_medidor_aq || ''} 
+                      onChange={e => handleUpdate('dados_gerais.serial_medidor_aq', e.target.value)} 
+                    />
+                  </div>
+                </div>
+                <div className="grid-2">
+                  <CameraInput 
+                    label="Foto Medidor AQ" 
+                    onPhotoTaken={b => handleUpdate('dados_gerais.imagem_medidor_aq', b)} 
+                    initialValue={vistoria.dados_gerais?.imagem_medidor_aq}
+                  />
+                  <CameraInput 
+                    label="Foto Serial AQ" 
+                    onPhotoTaken={b => handleUpdate('dados_gerais.imagem_serial_aq', b)} 
+                    initialValue={vistoria.dados_gerais?.imagem_serial_aq}
+                  />
+                </div>
               </div>
             )}
 
@@ -766,7 +878,7 @@ export default function App() {
                 <h3 style={{ fontSize: '1.1rem', color: 'var(--primary)', marginBottom: '1rem' }}>Medidor de Gás</h3>
                 <div className="grid-2">
                   <div className="form-group">
-                    <label>Estado Geral</label>
+                    <label>Estado Geral Gás</label>
                     <select 
                       value={vistoria.dados_gerais?.estado_medidor_gas || ''}
                       onChange={e => handleUpdate('dados_gerais.estado_medidor_gas', e.target.value)}
@@ -805,7 +917,7 @@ export default function App() {
             )}
 
             {/* Sistema de Aquecimento */}
-            {(isTipoGas(vistoria) || vistoria.subtipo_vistoria === 'Água e Gás') && (
+            {(isTipoAQ(vistoria) || isTipoGas(vistoria) || vistoria.dados_gerais?.sistema_aquecimento) && (
               <div style={{ marginBottom: '1rem' }}>
                 <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
                   <input 
