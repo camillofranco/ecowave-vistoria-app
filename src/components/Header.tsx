@@ -19,15 +19,14 @@ const Header: React.FC = () => {
 
   const handleUpdate = () => {
     setUpdating(true);
-    setTimeout(() => {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then((registrations) => {
-          for (let registration of registrations) {
-            registration.unregister();
-          }
-          window.location.reload();
-        });
-      } else {
+    setTimeout(async () => {
+      try {
+        if ('caches' in window) {
+          const names = await caches.keys();
+          await Promise.all(names.map(name => caches.delete(name)));
+        }
+        window.location.href = window.location.origin + window.location.pathname + '?t=' + Date.now();
+      } catch {
         window.location.reload();
       }
     }, 600);
