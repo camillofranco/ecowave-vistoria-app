@@ -119,6 +119,7 @@ const Header: React.FC = () => {
         {/* Botão de Atualizações com status */}
         <button 
           onClick={handleOpenModal}
+          className={hasNewUpdate ? 'update-badge-glow' : ''}
           style={{
             backgroundColor: hasNewUpdate ? '#10b981' : 'rgba(45, 138, 60, 0.1)',
             color: hasNewUpdate ? '#ffffff' : 'var(--primary)',
@@ -133,13 +134,12 @@ const Header: React.FC = () => {
             cursor: 'pointer',
             margin: 0,
             width: 'auto',
-            boxShadow: hasNewUpdate ? '0 0 10px rgba(16, 185, 129, 0.5)' : 'none',
             transition: 'all 0.3s ease'
           }}
           title="Verificar Atualizações"
         >
           <Sparkles size={14} color={hasNewUpdate ? '#ffffff' : 'var(--primary)'} />
-          <span>{hasNewUpdate ? 'Nova Versão!' : `v${CURRENT_LOCAL_VERSION}`}</span>
+          <span>{hasNewUpdate ? 'Nova Versão Disponível!' : `v${CURRENT_LOCAL_VERSION}`}</span>
         </button>
       </header>
 
