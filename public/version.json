@@ -1,11 +1,11 @@
 {
-  "version": "2.2.0",
+  "version": "2.3.0",
   "releaseDate": "01/09/2026",
-  "title": "Atualização Ecowave v2.2.0 - Visualização do Laudo PDF",
+  "title": "Atualização Ecowave v2.3.0 - Visualizador Nativo de PDF",
   "changelog": [
-    "Novo Botão 'Visualizar Laudo': Visualize o relatório em PDF na íntegra sem precisar enviar",
-    "Disponível no Histórico de Vistorias e no Passo 5 antes de finalizar",
-    "Visualizador em Tela Cheia com zoom, rolagem e botão rápido para envio direto",
-    "Fotos 1:1 sem distorção e qualificação precisa de vazão para torneiras e duchas"
+    "Novo Visualizador Nativo em Canvas: Renderização gráfica nítida e direta no Android e iOS sem tela em branco",
+    "Suporte a todas as páginas do laudo com rolagem contínua e controles de Zoom (+ / -)",
+    "Botão de Envio Direto na barra superior durante a visualização",
+    "Fotos 1:1 e qualificação de vazão para torneiras e duchas"
   ]
 }

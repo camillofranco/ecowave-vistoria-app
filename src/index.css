@@ -233,6 +233,10 @@ label {
   to { transform: rotate(360deg); }
 }
 
+.spin {
+  animation: spin 1s linear infinite;
+}
+
 .update-badge-glow {
   animation: pulseGlow 1.6s infinite ease-in-out !important;
 }
