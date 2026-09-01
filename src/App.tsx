@@ -238,7 +238,7 @@ export default function App() {
       if (pdfFileUri) {
         try {
           await Share.share({
-            title: `Laudo Técnico EcoWave - ${v.condominio || ''}`,
+            title: `Laudo Técnico Ecowave - ${v.condominio || ''}`,
             text: `Relatório Técnico de Vistoria: ${v.condominio || ''} - Bloco ${v.bloco || ''} Unidade ${v.unidade || ''}`,
             files: [pdfFileUri],
             dialogTitle: 'Enviar Laudo Técnico (PDF)'
@@ -278,7 +278,7 @@ export default function App() {
   const handleShareWhatsAppInfo = (v: Vistoria) => {
     const numbers = ['5511969162622', '5511988917611'];
     const tipoCompleto = `${v.tipo_vistoria || ''}${v.subtipo_vistoria ? ` - ${v.subtipo_vistoria}` : ''}`;
-    const text = `*Vistoria EcoWave*\n\n*Condomínio:* ${v.condominio}\n*Bloco:* ${v.bloco} | *Unidade:* ${v.unidade}\n*Tipo:* ${tipoCompleto}\n*Técnico:* ${v.tecnico}\n*Data:* ${v.data}\n\n_Relatório completo enviado em anexo._`;
+    const text = `*Vistoria Ecowave*\n\n*Condomínio:* ${v.condominio}\n*Bloco:* ${v.bloco} | *Unidade:* ${v.unidade}\n*Tipo:* ${tipoCompleto}\n*Técnico:* ${v.tecnico}\n*Data:* ${v.data}\n\n_Relatório completo enviado em anexo._`;
     const url = `https://wa.me/${numbers[0]}?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
@@ -1035,9 +1035,9 @@ export default function App() {
               initialValue={vistoria.assinatura_cliente || vistoria.assinatura}
             />
 
-            {/* 2. Assinatura do Técnico EcoWave */}
+            {/* 2. Assinatura do Técnico Ecowave */}
             <SignatureInput 
-              label={`Assinatura do Técnico (${vistoria.tecnico || 'Técnico EcoWave'})`}
+              label={`Assinatura do Técnico (${vistoria.tecnico || 'Técnico Ecowave'})`}
               helperText="Assinatura técnica do profissional responsável pela execução da vistoria."
               onSave={b => handleUpdate('assinatura_tecnico', b)} 
               initialValue={vistoria.assinatura_tecnico}

@@ -1,11 +1,11 @@
 {
-  "version": "1.8.0",
+  "version": "1.9.0",
   "releaseDate": "01/09/2026",
-  "title": "Atualização EcoWave v1.8.0 - Assinatura do Cliente",
+  "title": "Atualização Ecowave v1.9.0 - Diagramação Jurídica do Laudo",
   "changelog": [
-    "Assinatura do Morador / Cliente: Comprovação oficial de acompanhamento da vistoria",
-    "Assinatura do Técnico EcoWave com validação técnica",
-    "Laudo em PDF com bloco executivo de assinaturas duplas lado a lado",
-    "Orientações e textos de auxílio ao cliente na tela de assinatura"
+    "Diagramação Jurídica: Quebra de página dinâmica inteligente para assinaturas e parecer",
+    "Assinatura do Cliente com discriminação legal e área 100% visível (sem cortes no rodapé)",
+    "Padronização oficial da marca para 'Ecowave'",
+    "Caixas dedicadas para Morador e Técnico com termos de acompanhamento e veracidade"
   ]
 }

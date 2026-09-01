@@ -24,7 +24,7 @@ const CameraInput: React.FC<CameraInputProps> = ({ label, onPhotoTaken, initialV
         resultType: CameraResultType.DataUrl,
         source: CameraSource.Camera,
         saveToGallery: false,
-        promptLabelHeader: 'EcoWave Vistoria',
+        promptLabelHeader: 'Ecowave Vistoria',
         promptLabelPhoto: 'Escolher da Galeria',
         promptLabelPicture: 'Tirar Foto'
       });

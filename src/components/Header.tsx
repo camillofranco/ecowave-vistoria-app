@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import logo from '../assets/logo.png';
 import { Sparkles, RefreshCw, X, CheckCircle2, Zap, AlertCircle, Sun, Moon, Laptop } from 'lucide-react';
 
-const CURRENT_LOCAL_VERSION = '1.8.0';
+const CURRENT_LOCAL_VERSION = '1.9.0';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -146,11 +146,11 @@ const Header: React.FC = () => {
         zIndex: 100,
         transition: 'background-color 0.25s ease'
       }}>
-        {/* Logo EcoWave */}
+        {/* Logo Ecowave */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <img 
             src={logo} 
-            alt="EcoWave Logo" 
+            alt="Ecowave Logo" 
             style={{ 
               height: '38px', 
               width: 'auto',
