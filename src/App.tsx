@@ -3,7 +3,6 @@ import Header from './components/Header';
 import CameraInput from './components/CameraInput';
 import SignatureInput from './components/SignatureInput';
 import StopwatchTimer from './components/StopwatchTimer';
-import PdfViewerModal from './components/PdfViewerModal';
 import { db } from './db/database';
 import type { 
   Vistoria, 
@@ -161,10 +160,6 @@ export default function App() {
   const [vistoriasSalvas, setVistoriasSalvas] = useState<Vistoria[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Estados para Prévia / Visualização do PDF
-  const [previewPdfBase64, setPreviewPdfBase64] = useState<string | null>(null);
-  const [previewPdfTitle, setPreviewPdfTitle] = useState<string>('');
-  const [previewVistoria, setPreviewVistoria] = useState<Vistoria | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   useEffect(() => {
@@ -360,17 +355,47 @@ export default function App() {
     }
   };
 
-  // Função para apenas VISUALIZAR o Relatório em PDF
+  // Função para VISUALIZAR o Relatório em PDF com o leitor nativo do celular
   const handlePreviewPDF = async (v: Partial<Vistoria>) => {
     try {
       setIsLoadingPreview(true);
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      const { FileOpener } = await import('@capacitor-community/file-opener');
+
       const base64Data = await generatePDF(v as Vistoria, logoImg);
-      setPreviewPdfBase64(base64Data);
-      setPreviewPdfTitle(`${v.condominio || 'Vistoria'} • Bloco ${v.bloco || ''} Unidade ${v.unidade || ''}`);
-      setPreviewVistoria(v as Vistoria);
+      const safeCondoName = (v.condominio || 'Vistoria').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const pdfFileName = `Laudo_${safeCondoName}_${v.unidade || 'Unidade'}.pdf`;
+
+      try {
+        const savedPdf = await Filesystem.writeFile({
+          path: pdfFileName,
+          data: base64Data,
+          directory: Directory.Cache
+        });
+
+        await FileOpener.open({
+          filePath: savedPdf.uri,
+          contentType: 'application/pdf'
+        });
+        return;
+      } catch (nativeErr) {
+        console.warn('FileOpener nativo falhou ou ambiente web:', nativeErr);
+      }
+
+      // Fallback para Web / Navegador desktop
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+
     } catch (err: any) {
-      console.error('Erro ao gerar prévia:', err);
-      alert(`Erro ao abrir visualização do laudo: ${err?.message || 'Verifique as informações preenchidas.'}`);
+      console.error('Erro ao abrir PDF:', err);
+      alert(`Erro ao visualizar laudo: ${err?.message || 'Verifique as informações preenchidas.'}`);
     } finally {
       setIsLoadingPreview(false);
     }
@@ -528,19 +553,6 @@ export default function App() {
               </div>
             </div>
           ))
-        )}
-
-        {/* MODAL DE VISUALIZAÇÃO DE LAUDO PDF */}
-        {previewPdfBase64 && (
-          <PdfViewerModal
-            base64Data={previewPdfBase64}
-            title={previewPdfTitle}
-            onClose={() => {
-              setPreviewPdfBase64(null);
-              setPreviewVistoria(null);
-            }}
-            onShare={previewVistoria ? () => handleGenerateAndSharePDF(previewVistoria) : undefined}
-          />
         )}
       </div>
     );
@@ -1563,19 +1575,6 @@ export default function App() {
             </button>
           </div>
         </motion.div>
-      )}
-
-      {/* MODAL GLOBAL DE VISUALIZAÇÃO DE LAUDO PDF */}
-      {previewPdfBase64 && (
-        <PdfViewerModal
-          base64Data={previewPdfBase64}
-          title={previewPdfTitle}
-          onClose={() => {
-            setPreviewPdfBase64(null);
-            setPreviewVistoria(null);
-          }}
-          onShare={previewVistoria ? () => handleGenerateAndSharePDF(previewVistoria) : undefined}
-        />
       )}
     </div>
   );
