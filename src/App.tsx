@@ -360,26 +360,38 @@ export default function App() {
     try {
       setIsLoadingPreview(true);
       const { Filesystem, Directory } = await import('@capacitor/filesystem');
-      const { FileOpener } = await import('@capacitor-community/file-opener');
+      const { Share } = await import('@capacitor/share');
 
       const base64Data = await generatePDF(v as Vistoria, logoImg);
       const safeCondoName = (v.condominio || 'Vistoria').replace(/[^a-z0-9]/gi, '_').toLowerCase();
       const pdfFileName = `Laudo_${safeCondoName}_${v.unidade || 'Unidade'}.pdf`;
 
+      let pdfFileUri = '';
       try {
         const savedPdf = await Filesystem.writeFile({
           path: pdfFileName,
           data: base64Data,
           directory: Directory.Cache
         });
+        pdfFileUri = savedPdf.uri;
+      } catch (fsErr) {
+        console.warn('Erro ao gravar no Directory.Cache:', fsErr);
+      }
 
-        await FileOpener.open({
-          filePath: savedPdf.uri,
-          contentType: 'application/pdf'
-        });
-        return;
-      } catch (nativeErr) {
-        console.warn('FileOpener nativo falhou ou ambiente web:', nativeErr);
+      if (pdfFileUri) {
+        try {
+          await Share.share({
+            title: `Laudo Técnico Ecowave - ${v.condominio || ''}`,
+            files: [pdfFileUri],
+            dialogTitle: 'Visualizar / Abrir Laudo (PDF)'
+          });
+          return;
+        } catch (shareErr: any) {
+          if (shareErr?.message?.includes('cancel') || shareErr?.message?.includes('closed') || shareErr?.message?.includes('dismiss')) {
+            return;
+          }
+          console.warn('Share nativo falhou, aplicando fallback...', shareErr);
+        }
       }
 
       // Fallback para Web / Navegador desktop
@@ -391,7 +403,13 @@ export default function App() {
       const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: 'application/pdf' });
       const blobUrl = URL.createObjectURL(blob);
-      window.open(blobUrl, '_blank');
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = pdfFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
 
     } catch (err: any) {
       console.error('Erro ao abrir PDF:', err);

@@ -1,11 +1,10 @@
 {
-  "version": "2.4.0",
+  "version": "2.5.0",
   "releaseDate": "01/09/2026",
-  "title": "Atualização Ecowave v2.4.0 - Visualização Nativa de PDF",
+  "title": "Atualização Ecowave v2.5.0 - Visualização Nativa Instantânea",
   "changelog": [
-    "Visualização Nativa de Laudo: Abre diretamente no leitor oficial de PDF do Android (Google Drive / Adobe Reader / visualizador padrão do WhatsApp)",
-    "Experiência idêntica ao PDF recebido pelo WhatsApp com nitidez máxima, zoom nativo e paginação completa",
-    "Disponível no Histórico e no Passo 5 da vistoria",
-    "Fotos 1:1 e qualificação de vazão para torneiras e duchas"
+    "Abertura Instantânea: Toque em 'Visualizar' para abrir o PDF com o visualizador nativo do Android (Google Drive / PDF Viewer / WhatsApp)",
+    "Compatibilidade Total com Atualizações Live: Sem necessidade de reinstalar o APK",
+    "Qualidade Máxima: Zoom contínuo, nitidez 100%, fotos 1:1 e ferramentas de impressão/envio do sistema"
   ]
 }
