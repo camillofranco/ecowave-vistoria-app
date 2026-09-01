@@ -1,12 +1,11 @@
 {
-  "version": "2.1.0",
+  "version": "2.2.0",
   "releaseDate": "01/09/2026",
-  "title": "Atualização Ecowave v2.1.0 - Duchas, Fotos 1:1 e Qualificação de Vazão",
+  "title": "Atualização Ecowave v2.2.0 - Visualização do Laudo PDF",
   "changelog": [
-    "Fotos 1:1 Sem Distorção: Renderização quadrada perfeita no laudo PDF e na tela",
-    "Etiquetas Completas: Data, hora e identificação nas fotos do anexo do PDF",
-    "Mapeamento de Duchas e Chuveiros: Suporte a duchas a gás, chuveiros elétricos e duchas higiênicas",
-    "Qualificação Técnica de Vazão: Torneiras (0-5L Econômico, 5-7L Normal, >7L Alto Consumo) e Duchas (0-8L Econômico, 9-13L Normal, >13L Alto Consumo)",
-    "Filtro Inteligente 'Não se Aplica': Omite vasos e pontos inexistentes para um laudo limpo e objetivo"
+    "Novo Botão 'Visualizar Laudo': Visualize o relatório em PDF na íntegra sem precisar enviar",
+    "Disponível no Histórico de Vistorias e no Passo 5 antes de finalizar",
+    "Visualizador em Tela Cheia com zoom, rolagem e botão rápido para envio direto",
+    "Fotos 1:1 sem distorção e qualificação precisa de vazão para torneiras e duchas"
   ]
 }

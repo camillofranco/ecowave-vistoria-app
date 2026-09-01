@@ -25,7 +25,10 @@ import {
   AlertTriangle,
   Droplets,
   Gauge,
-  Video
+  Video,
+  Eye,
+  Share2,
+  X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { generatePDF } from './utils/pdfGenerator';
@@ -158,6 +161,12 @@ export default function App() {
   const [vistoria, setVistoria] = useState<Partial<Vistoria>>(INITIAL_VISTORIA);
   const [vistoriasSalvas, setVistoriasSalvas] = useState<Vistoria[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+
+  // Estados para Prévia / Visualização do PDF
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [previewPdfTitle, setPreviewPdfTitle] = useState<string>('');
+  const [previewVistoria, setPreviewVistoria] = useState<Vistoria | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   useEffect(() => {
     loadHistory();
@@ -352,6 +361,31 @@ export default function App() {
     }
   };
 
+  // Função para apenas VISUALIZAR o Relatório em PDF
+  const handlePreviewPDF = async (v: Partial<Vistoria>) => {
+    try {
+      setIsLoadingPreview(true);
+      const base64Data = await generatePDF(v as Vistoria, logoImg);
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      const blobUrl = URL.createObjectURL(blob);
+      
+      setPreviewPdfUrl(blobUrl);
+      setPreviewPdfTitle(`${v.condominio || 'Vistoria'} • Bloco ${v.bloco || ''} Unidade ${v.unidade || ''}`);
+      setPreviewVistoria(v as Vistoria);
+    } catch (err: any) {
+      console.error('Erro ao gerar prévia:', err);
+      alert(`Erro ao abrir visualização do laudo: ${err?.message || 'Verifique as informações preenchidas.'}`);
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
   const handleGenerateAndSharePDF = async (v: Vistoria) => {
     try {
       const { Filesystem, Directory } = await import('@capacitor/filesystem');
@@ -471,16 +505,131 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <div className="grid-2" style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-                <button onClick={() => handleGenerateAndSharePDF(v)} style={{ backgroundColor: 'var(--primary)' }}>
-                  <FileText size={16} /> Enviar PDF
+
+              {/* Botões de Ação do Histórico: Visualizar, Enviar e Zap */}
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1.2fr 1fr 0.8fr', 
+                gap: '0.5rem', 
+                marginTop: '1.25rem', 
+                paddingTop: '1rem', 
+                borderTop: '1px solid var(--border)' 
+              }}>
+                <button 
+                  onClick={() => handlePreviewPDF(v)} 
+                  className="secondary"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.8rem', padding: '8px 4px' }}
+                >
+                  <Eye size={15} /> Visualizar
                 </button>
-                <button onClick={() => handleShareWhatsAppInfo(v)} className="secondary outline">
-                  <MessageSquare size={16} /> Info Zap
+                <button 
+                  onClick={() => handleGenerateAndSharePDF(v)} 
+                  style={{ backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.8rem', padding: '8px 4px' }}
+                >
+                  <Share2 size={15} /> Enviar
+                </button>
+                <button 
+                  onClick={() => handleShareWhatsAppInfo(v)} 
+                  className="secondary outline"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.8rem', padding: '8px 4px' }}
+                >
+                  <MessageSquare size={15} /> Zap
                 </button>
               </div>
             </div>
           ))
+        )}
+
+        {/* MODAL DE VISUALIZAÇÃO DE LAUDO PDF */}
+        {previewPdfUrl && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            zIndex: 999999,
+            display: 'flex',
+            flexDirection: 'column',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{
+              backgroundColor: 'var(--surface)',
+              borderBottom: '1px solid var(--border)',
+              padding: '0.6rem 1rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                <FileText size={20} color="var(--primary)" />
+                <div style={{ overflow: 'hidden' }}>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                    Visualização do Laudo PDF
+                  </div>
+                  <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {previewPdfTitle}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {previewVistoria && (
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateAndSharePDF(previewVistoria)}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      margin: 0,
+                      width: 'auto',
+                      backgroundColor: 'var(--primary)'
+                    }}
+                  >
+                    <Share2 size={15} />
+                    <span>Enviar</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (previewPdfUrl) URL.revokeObjectURL(previewPdfUrl);
+                    setPreviewPdfUrl(null);
+                    setPreviewVistoria(null);
+                  }}
+                  className="secondary"
+                  style={{
+                    padding: '6px 8px',
+                    fontSize: '0.8rem',
+                    margin: 0,
+                    width: 'auto',
+                    borderRadius: '50%'
+                  }}
+                  title="Fechar"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div style={{ flex: 1, width: '100%', height: '100%', position: 'relative', backgroundColor: '#334155' }}>
+              <iframe
+                src={`${previewPdfUrl}#toolbar=1&navpanes=0&view=FitH`}
+                title="Visualizador de Laudo PDF"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none'
+                }}
+              />
+            </div>
+          </div>
         )}
       </div>
     );
@@ -1474,20 +1623,129 @@ export default function App() {
               initialValue={vistoria.assinatura_tecnico}
             />
 
-            <div className="grid-2" style={{ marginTop: '2rem' }}>
-              <button onClick={() => setStep(4)} className="secondary">
-                <ChevronLeft size={18} /> Voltar
+            {/* Botões do Passo 5: Visualizar Laudo, Voltar e Salvar */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '1.5rem' }}>
+              <button 
+                type="button"
+                onClick={() => handlePreviewPDF(vistoria)} 
+                className="secondary"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                disabled={isLoadingPreview}
+              >
+                <Eye size={18} /> {isLoadingPreview ? 'Gerando...' : 'Visualizar Laudo'}
               </button>
               <button 
                 onClick={saveVistoria} 
-                style={{ backgroundColor: 'var(--success)' }} 
+                style={{ backgroundColor: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} 
                 disabled={!vistoria.parecer_tecnico}
               >
                 <Save size={18} /> Finalizar Vistoria
               </button>
             </div>
+
+            <button 
+              onClick={() => setStep(4)} 
+              className="secondary outline"
+              style={{ marginTop: '0.75rem' }}
+            >
+              <ChevronLeft size={18} /> Voltar ao Passo Anterior
+            </button>
           </div>
         </motion.div>
+      )}
+
+      {/* MODAL GLOBAL DE VISUALIZAÇÃO DE LAUDO PDF */}
+      {previewPdfUrl && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+          zIndex: 999999,
+          display: 'flex',
+          flexDirection: 'column',
+          boxSizing: 'border-box'
+        }}>
+          {/* Barra Superior */}
+          <div style={{
+            backgroundColor: 'var(--surface)',
+            borderBottom: '1px solid var(--border)',
+            padding: '0.6rem 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+            flexShrink: 0
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              <FileText size={20} color="var(--primary)" />
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  Visualização do Laudo PDF
+                </div>
+                <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {previewPdfTitle}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {previewVistoria && (
+                <button
+                  type="button"
+                  onClick={() => handleGenerateAndSharePDF(previewVistoria)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '0.8rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    margin: 0,
+                    width: 'auto',
+                    backgroundColor: 'var(--primary)'
+                  }}
+                >
+                  <Share2 size={15} />
+                  <span>Enviar</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (previewPdfUrl) URL.revokeObjectURL(previewPdfUrl);
+                  setPreviewPdfUrl(null);
+                  setPreviewVistoria(null);
+                }}
+                className="secondary"
+                style={{
+                  padding: '6px 8px',
+                  fontSize: '0.8rem',
+                  margin: 0,
+                  width: 'auto',
+                  borderRadius: '50%'
+                }}
+                title="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Área do PDF */}
+          <div style={{ flex: 1, width: '100%', height: '100%', position: 'relative', backgroundColor: '#334155' }}>
+            <iframe
+              src={`${previewPdfUrl}#toolbar=1&navpanes=0&view=FitH`}
+              title="Visualizador de Laudo PDF"
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none'
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
