@@ -232,29 +232,72 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 15;
   }
 
-  // 4. Parecer e Assinatura
+  // 4. Parecer e Assinaturas
   doc.setFillColor(...colorLightGray);
-  doc.roundedRect(margin, currentY, width - (margin * 2), 50, 2, 2, 'F');
+  doc.roundedRect(margin, currentY, width - (margin * 2), 38, 2, 2, 'F');
   
   doc.setFontSize(10);
+  doc.setTextColor(...colorPurple);
   doc.setFont('helvetica', 'bold');
-  doc.text('PARECER TÉCNICO FINAL:', margin + 5, currentY + 10);
+  doc.text('PARECER TÉCNICO FINAL:', margin + 5, currentY + 8);
+  doc.setTextColor(...colorDarkGray);
   doc.setFont('helvetica', 'normal');
   const splitParecer = doc.splitTextToSize(v.parecer_tecnico || 'Vistoria técnica finalizada.', width - (margin * 2) - 10);
-  doc.text(splitParecer, margin + 5, currentY + 18);
+  doc.text(splitParecer, margin + 5, currentY + 15);
 
-  if (v.assinatura && v.assinatura.includes('base64,')) {
-    const sigY = currentY + 60;
-    doc.setDrawColor(200);
-    doc.line(margin, sigY + 20, margin + 70, sigY + 20);
+  currentY += 45;
+
+  // 5. Assinaturas Oficiais (Morador/Cliente e Técnico)
+  const sigBoxW = (width - (margin * 2) - 15) / 2;
+  const clientSigX = margin;
+  const techSigX = margin + sigBoxW + 15;
+  const sigY = currentY;
+
+  // --- Assinatura do Morador / Cliente ---
+  const clientSig = v.assinatura_cliente || v.assinatura;
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.5);
+  doc.line(clientSigX, sigY + 18, clientSigX + sigBoxW, sigY + 18);
+
+  if (clientSig && clientSig.includes('base64,')) {
     try {
-      doc.addImage(v.assinatura, 'PNG', margin + 5, sigY - 5, 60, 20);
+      doc.addImage(clientSig, 'PNG', clientSigX + (sigBoxW - 55) / 2, sigY - 2, 55, 18);
     } catch (e) {
-      console.warn('Erro ao renderizar assinatura no PDF', e);
+      console.warn('Erro ao renderizar assinatura do cliente no PDF', e);
     }
-    doc.setFontSize(8);
-    doc.text('ASSINATURA TÉCNICA / RESPONSÁVEL', margin, sigY + 25);
   }
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...colorDarkGray);
+  doc.text((v.responsavel_unidade || 'MORADOR / RESPONSÁVEL').toUpperCase(), clientSigX + sigBoxW / 2, sigY + 23, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(100);
+  doc.text('Acompanhante / Recebimento da Vistoria', clientSigX + sigBoxW / 2, sigY + 27, { align: 'center' });
+
+  // --- Assinatura do Técnico EcoWave ---
+  const techSig = v.assinatura_tecnico;
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.5);
+  doc.line(techSigX, sigY + 18, techSigX + sigBoxW, sigY + 18);
+
+  if (techSig && techSig.includes('base64,')) {
+    try {
+      doc.addImage(techSig, 'PNG', techSigX + (sigBoxW - 55) / 2, sigY - 2, 55, 18);
+    } catch (e) {
+      console.warn('Erro ao renderizar assinatura do técnico no PDF', e);
+    }
+  }
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...colorDarkGray);
+  doc.text((v.tecnico || 'TÉCNICO RESPONSÁVEL').toUpperCase(), techSigX + sigBoxW / 2, sigY + 23, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(100);
+  doc.text('EcoWave Tecnologia e Medições', techSigX + sigBoxW / 2, sigY + 27, { align: 'center' });
 
   // --- PÁGINA 2: GALERIA ---
   let imgCount = 0;

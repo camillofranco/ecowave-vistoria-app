@@ -78,6 +78,8 @@ export interface Vistoria {
   ponto_consumo?: PontoConsumo;
   dados_gerais: DadosGerais;
   parecer_tecnico: string;
+  assinatura_cliente?: string;
+  assinatura_tecnico?: string;
   assinatura?: string;
   createdAt: number;
 }

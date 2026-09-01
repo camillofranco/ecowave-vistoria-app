@@ -1,20 +1,27 @@
 import React, { useRef, useEffect } from 'react';
 import SignaturePad from 'signature_pad';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, PenTool } from 'lucide-react';
 
 interface SignatureInputProps {
+  label?: string;
+  helperText?: string;
   onSave: (dataUrl: string) => void;
   initialValue?: string;
 }
 
-const SignatureInput: React.FC<SignatureInputProps> = ({ onSave, initialValue }) => {
+const SignatureInput: React.FC<SignatureInputProps> = ({ 
+  label = 'Assinatura', 
+  helperText, 
+  onSave, 
+  initialValue 
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const signaturePadRef = useRef<SignaturePad | null>(null);
 
   useEffect(() => {
     if (canvasRef.current) {
       signaturePadRef.current = new SignaturePad(canvasRef.current, {
-        backgroundColor: '#f8fafc',
+        backgroundColor: '#ffffff',
         penColor: '#0f172a'
       });
 
@@ -51,32 +58,43 @@ const SignatureInput: React.FC<SignatureInputProps> = ({ onSave, initialValue })
   };
 
   return (
-    <div className="form-group">
-      <label>Assinatura do Responsável / Técnico</label>
+    <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600' }}>
+        <PenTool size={16} color="var(--primary)" />
+        <span>{label}</span>
+      </label>
+      {helperText && (
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '-0.2rem 0 0.5rem 0' }}>
+          {helperText}
+        </p>
+      )}
       <div style={{ 
         position: 'relative', 
-        border: '2px solid var(--border)', 
+        border: '2px dashed var(--border)', 
         borderRadius: 'var(--radius)',
         overflow: 'hidden',
-        backgroundColor: '#f8fafc'
+        backgroundColor: '#ffffff'
       }}>
         <canvas 
           ref={canvasRef} 
-          style={{ width: '100%', height: '200px', cursor: 'crosshair' }} 
+          style={{ width: '100%', height: '170px', cursor: 'crosshair', display: 'block' }} 
         />
         <button 
           onClick={clear}
           className="secondary"
           style={{ 
             position: 'absolute', 
-            bottom: '10px', 
-            right: '10px', 
+            bottom: '8px', 
+            right: '8px', 
             width: 'auto',
-            padding: '0.5rem',
-            fontSize: '0.8rem'
+            padding: '0.4rem 0.8rem',
+            fontSize: '0.75rem',
+            backgroundColor: 'rgba(241, 245, 249, 0.9)',
+            border: '1px solid #cbd5e1',
+            color: '#334155'
           }}
         >
-          <RotateCcw size={14} /> Corrigir Assinatura
+          <RotateCcw size={13} /> Limpar
         </button>
       </div>
     </div>

@@ -1024,9 +1024,23 @@ export default function App() {
               />
             </div>
 
+            {/* 1. Assinatura do Morador / Cliente */}
             <SignatureInput 
-              onSave={b => handleUpdate('assinatura', b)} 
-              initialValue={vistoria.assinatura}
+              label={`Assinatura do Morador / Cliente (${vistoria.responsavel_unidade || 'Responsável'})`}
+              helperText="O morador ou responsável pela unidade deve assinar abaixo para comprovar a presença e o recebimento da vistoria."
+              onSave={b => {
+                handleUpdate('assinatura_cliente', b);
+                handleUpdate('assinatura', b); // Mantém retrocompatibilidade
+              }} 
+              initialValue={vistoria.assinatura_cliente || vistoria.assinatura}
+            />
+
+            {/* 2. Assinatura do Técnico EcoWave */}
+            <SignatureInput 
+              label={`Assinatura do Técnico (${vistoria.tecnico || 'Técnico EcoWave'})`}
+              helperText="Assinatura técnica do profissional responsável pela execução da vistoria."
+              onSave={b => handleUpdate('assinatura_tecnico', b)} 
+              initialValue={vistoria.assinatura_tecnico}
             />
 
             <div className="grid-2" style={{ marginTop: '2rem' }}>

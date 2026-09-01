@@ -1,11 +1,11 @@
 {
-  "version": "1.7.0",
+  "version": "1.8.0",
   "releaseDate": "01/09/2026",
-  "title": "Atualização EcoWave v1.7.0 - Correção no Envio do Laudo PDF",
+  "title": "Atualização EcoWave v1.8.0 - Assinatura do Cliente",
   "changelog": [
-    "Correção no Envio e Compartilhamento do Laudo em PDF (WhatsApp / Email)",
-    "Geração de laudos reforçada com proteção contra falhas",
-    "Download direto de emergência do PDF caso o app receptor falhe",
-    "Sincronização em nuvem automática dos relatórios e vídeos"
+    "Assinatura do Morador / Cliente: Comprovação oficial de acompanhamento da vistoria",
+    "Assinatura do Técnico EcoWave com validação técnica",
+    "Laudo em PDF com bloco executivo de assinaturas duplas lado a lado",
+    "Orientações e textos de auxílio ao cliente na tela de assinatura"
   ]
 }
