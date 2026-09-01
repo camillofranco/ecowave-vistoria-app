@@ -1,10 +1,13 @@
 {
-  "version": "2.5.0",
+  "version": "2.6.0",
   "releaseDate": "01/09/2026",
-  "title": "Atualização Ecowave v2.5.0 - Visualização Nativa Instantânea",
+  "title": "Atualização Ecowave v2.6.0 - Laudo Técnico Executivo Aperfeiçoado",
   "changelog": [
-    "Abertura Instantânea: Toque em 'Visualizar' para abrir o PDF com o visualizador nativo do Android (Google Drive / PDF Viewer / WhatsApp)",
-    "Compatibilidade Total com Atualizações Live: Sem necessidade de reinstalar o APK",
-    "Qualidade Máxima: Zoom contínuo, nitidez 100%, fotos 1:1 e ferramentas de impressão/envio do sistema"
+    "Eliminação de Abreviações: Nomes de ambientes completos (ex: Banheiro Social, Banheiro Suíte, Número de Série)",
+    "Formatação e Caracteres 100% Limpos: Remoção de emojis/caracteres corrompidos nas tabelas",
+    "Tabelas com Linhas e Bordas Claras: Grade técnica nítida e de fácil leitura",
+    "Adequação de Título: 'Parecer Técnico e Validação da Unidade Vistoriada'",
+    "Assinaturas com Nomes Discriminados: Nome do morador e do técnico impressos abaixo das assinaturas",
+    "Fotos 1:1 Sem Distorção: Enquadramento central 1:1 de alta fidelidade"
   ]
 }

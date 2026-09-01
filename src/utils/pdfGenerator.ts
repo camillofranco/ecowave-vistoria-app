@@ -2,17 +2,48 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Vistoria, DadosGerais } from '../db/database';
 
+// Função para recortar a imagem no centro em formato 1:1 quadrado perfeito, eliminando distorções
+const cropToSquareBase64 = async (dataUrl: string): Promise<string> => {
+  if (!dataUrl || !dataUrl.includes('base64,')) return dataUrl;
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const minDim = Math.min(img.width, img.height);
+        canvas.width = 1000;
+        canvas.height = 1000;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const sx = (img.width - minDim) / 2;
+          const sy = (img.height - minDim) / 2;
+          ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, 1000, 1000);
+          resolve(canvas.toDataURL('image/jpeg', 0.88));
+          return;
+        }
+      } catch (e) {
+        console.warn('Falha no crop 1:1 de imagem', e);
+      }
+      resolve(dataUrl);
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+};
+
 export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string> => {
   const doc = new jsPDF();
   const width = doc.internal.pageSize.getWidth();
   const height = doc.internal.pageSize.getHeight();
-  const margin = 20;
+  const margin = 18;
 
   // Cores Oficiais Ecowave
   const colorGreen: [number, number, number] = [45, 138, 60]; // #2d8a3c
   const colorPurple: [number, number, number] = [63, 61, 122]; // #3f3d7a
   const colorLightGray: [number, number, number] = [248, 250, 252];
   const colorDarkGray: [number, number, number] = [51, 65, 85];
+  const colorBorder: [number, number, number] = [203, 213, 225]; // #cbd5e1
 
   const getBase64FromUrl = async (url: string): Promise<string> => {
     try {
@@ -38,56 +69,59 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     }
   }
 
-  // Auxiliar para Rodapé em todas as páginas
+  // Rodapé Oficial em todas as páginas
   const addFooter = (pageNum: number, totalPages: number) => {
     doc.setPage(pageNum);
-    doc.setDrawColor(226, 232, 240);
+    doc.setDrawColor(...colorBorder);
     doc.setLineWidth(0.5);
-    doc.line(margin, height - 15, width - margin, height - 15);
+    doc.line(margin, height - 14, width - margin, height - 14);
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
-    doc.text('Ecowave - Tecnologia em Medição e Vistorias Técnicas', margin, height - 10);
-    doc.text(`Página ${pageNum} de ${totalPages}`, width - margin, height - 10, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.text('Ecowave - Tecnologia em Medição e Vistorias Técnicas', margin, height - 9);
+    doc.text(`Página ${pageNum} de ${totalPages}`, width - margin, height - 9, { align: 'right' });
   };
 
-  // --- PÁGINA 1: CABEÇALHO E DADOS ---
+  // --- PÁGINA 1: CABEÇALHO E DADOS GERAIS ---
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, width, 38, 'F');
   if (logoBase64 && logoBase64.includes('base64,')) {
     try {
-      doc.addImage(logoBase64, 'PNG', margin, 8, 48, 17);
+      doc.addImage(logoBase64, 'PNG', margin, 7, 48, 17);
     } catch (e) {
       console.warn('Não foi possível renderizar a logo no PDF', e);
     }
   }
   
+  // Linha decorativa verde
   doc.setDrawColor(...colorGreen);
   doc.setLineWidth(1.5);
-  doc.line(0, 32, width, 32);
+  doc.line(0, 31, width, 31);
 
   const isAltoConsumo = v.tipo_vistoria === 'Alto Consumo' || v.tipo_vistoria === 'alto_consumo';
 
-  // Título e ID
+  // Título Oficial e Metadados
   doc.setTextColor(...colorPurple);
-  doc.setFontSize(16);
+  doc.setFontSize(15);
   doc.setFont('helvetica', 'bold');
   doc.text(
     isAltoConsumo 
       ? 'RELATÓRIO TÉCNICO DE ALTO CONSUMO' 
       : 'RELATÓRIO TÉCNICO DE VISTORIA GERAL', 
     margin, 
-    44
+    42
   );
   
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(100);
-  doc.text(`EMISSÃO: ${v.data || ''} às ${v.hora || ''} | ID: #${v.id || 'N/A'}`, margin, 50);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Data de Emissão: ${v.data || ''} às ${v.hora || ''} | Identificador: #${v.id || 'N/A'}`, margin, 48);
 
-  // 1. Bloco de Informações do Local
-  const infoBoxY = 56;
-  const infoBoxH = 28;
+  // Bloco de Informações do Local (com bordas claras e estruturadas)
+  const infoBoxY = 53;
+  const infoBoxH = 29;
   doc.setFillColor(...colorLightGray);
-  doc.setDrawColor(226, 232, 240);
+  doc.setDrawColor(...colorBorder);
   doc.setLineWidth(0.5);
   doc.roundedRect(margin, infoBoxY, width - (margin * 2), infoBoxH, 2, 2, 'FD');
   
@@ -105,7 +139,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   doc.setFontSize(8);
   doc.setTextColor(100);
   doc.setFont('helvetica', 'bold');
-  doc.text('INFORMAÇÕES DO LOCAL', margin + 5, infoBoxY + 7);
+  doc.text('INFORMAÇÕES DO LOCAL VISTORIADO', margin + 5, infoBoxY + 7);
   doc.text(`MODALIDADE: ${tipoExibicao}`, width - margin - 5, infoBoxY + 7, { align: 'right' });
   
   doc.setTextColor(...colorDarkGray);
@@ -115,38 +149,38 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Técnico: ${v.tecnico || '-'}`, margin + 5, infoBoxY + 22);
-  doc.text(`Responsável: ${v.responsavel_unidade || '-'}`, width - margin - 5, infoBoxY + 22, { align: 'right' });
+  doc.text(`Técnico Responsável: ${v.tecnico || '-'}`, margin + 5, infoBoxY + 23);
+  doc.text(`Responsável pela Unidade: ${v.responsavel_unidade || '-'}`, width - margin - 5, infoBoxY + 23, { align: 'right' });
 
   let currentY = infoBoxY + infoBoxH + 8;
 
-  // Se for ALTO CONSUMO, renderiza o conjunto de 3 tabelas especializadas
+  // --- SEÇÃO ALTO CONSUMO: TABELAS TÉCNICAS EXECUTIVAS ---
   if (isAltoConsumo) {
-    // TABELA 1: Inspeção de Caixas Acopladas (Filtra não aplicáveis para economizar espaço)
+    // TABELA 1: Inspeção de Caixas Acopladas
     const caixasAtivas = (v.caixas_acopladas || []).filter(c => c.status !== 'nao_aplicavel');
     if (caixasAtivas.length > 0) {
       doc.setTextColor(...colorPurple);
-      doc.setFontSize(11);
+      doc.setFontSize(10.5);
       doc.setFont('helvetica', 'bold');
       doc.text('1. INSPEÇÃO PRELIMINAR DE CAIXAS ACOPLADAS (VASOS SANITÁRIOS)', margin, currentY);
 
       const caixasRows = caixasAtivas.map(c => {
-        let statusLabel = '✅ EM CONFORMIDADE (SEM VAZAMENTO)';
+        let statusLabel = 'EM CONFORMIDADE (SEM VAZAMENTO)';
         let statusColor: [number, number, number] = colorGreen;
         let diag = 'Vedação inferior e nível do ladrão normais';
 
         if (c.status === 'vazamento_ladrao') {
-          statusLabel = '❌ VAZAMENTO NO LADRÃO';
+          statusLabel = 'VAZAMENTO NO LADRÃO';
           statusColor = [220, 38, 38];
           diag = 'Nível de água acima do tubo extravasor (regulagem necessária)';
         } else if (c.status === 'vazamento_borracha') {
-          statusLabel = '❌ VAZAMENTO NA VEDAÇÃO';
+          statusLabel = 'VAZAMENTO NA VEDAÇÃO INFERIOR';
           statusColor = [220, 38, 38];
-          diag = 'Borracha inferior desgastada (passagem contínua)';
+          diag = 'Borracha inferior desgastada com passagem contínua de água';
         } else if (c.status === 'vazamento_ambos') {
-          statusLabel = '❌ VAZAMENTO DUPLO (LADRÃO E VEDAÇÃO)';
+          statusLabel = 'VAZAMENTO NO LADRÃO E NA VEDAÇÃO';
           statusColor = [220, 38, 38];
-          diag = 'Transbordamento no ladrão e falha na vedação';
+          diag = 'Transbordamento no ladrão e falha simultânea na vedação';
         }
 
         if (c.observacao) diag += ` • ${c.observacao}`;
@@ -163,9 +197,15 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
         margin: { left: margin, right: margin },
         head: [['LOCAL / AMBIENTE', 'STATUS DA VEDAÇÃO', 'DIAGNÓSTICO TÉCNICO']],
         body: caixasRows,
-        theme: 'striped',
-        headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 8, cellPadding: 2 },
-        bodyStyles: { fontSize: 8, cellPadding: 2 }
+        theme: 'grid',
+        headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 8, fontStyle: 'bold', cellPadding: 3 },
+        bodyStyles: { fontSize: 8, cellPadding: 2.8, textColor: colorDarkGray },
+        styles: { lineColor: colorBorder, lineWidth: 0.5 },
+        columnStyles: {
+          0: { cellWidth: 42, fontStyle: 'bold' },
+          1: { cellWidth: 55, halign: 'center' },
+          2: { halign: 'left' }
+        }
       });
       currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 7;
     }
@@ -173,9 +213,9 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     // TABELA 2: Aferição de Precisão do Medidor (Balde 10L)
     if (v.afericoes_medidores && v.afericoes_medidores.length > 0) {
       doc.setTextColor(...colorPurple);
-      doc.setFontSize(11);
+      doc.setFontSize(10.5);
       doc.setFont('helvetica', 'bold');
-      doc.text('2. AFERIÇÃO DE PRECISÃO DO HIDRÔMETRO (BALDE GRADUADO 10L)', margin, currentY);
+      doc.text('2. AFERIÇÃO DE PRECISÃO DO HIDRÔMETRO (BALDE GRADUADO DE 10 LITROS)', margin, currentY);
 
       const afericaoRows = v.afericoes_medidores.map(a => {
         const isConforme = a.status === 'conforme';
@@ -188,37 +228,40 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
           `${(a.litros_medidos_hidrometro || 0).toFixed(1)} L (${(a.diferenca_m3 || 0).toFixed(4)} m³)`,
           `${(a.volume_balde_litros || 10).toFixed(1)} L`,
           `${desvio > 0 ? '+' : ''}${desvio.toFixed(1)}%`,
-          { content: isConforme ? '✅ CONFORME' : '⚠️ DIVERGENTE', styles: { textColor: colorResult, fontStyle: 'bold' as const } }
+          { content: isConforme ? 'CONFORME' : 'DIVERGENTE', styles: { textColor: colorResult, fontStyle: 'bold' as const } }
         ];
       });
 
       autoTable(doc, {
         startY: currentY + 3,
         margin: { left: margin, right: margin },
-        head: [['MEDIDOR', 'LEITURA ANTES', 'LEITURA DEPOIS', 'REGISTRADO', 'BALDE', 'DESVIO', 'RESULTADO']],
+        head: [['MEDIDOR', 'LEITURA INICIAL', 'LEITURA FINAL', 'VOLUME REGISTRADO', 'BALDE GRADUADO', 'DESVIO (%)', 'RESULTADO']],
         body: afericaoRows,
-        theme: 'striped',
-        headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 7.5, halign: 'center', cellPadding: 2 },
-        bodyStyles: { fontSize: 8, halign: 'center', cellPadding: 2 },
-        columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } }
+        theme: 'grid',
+        headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 7.5, fontStyle: 'bold', halign: 'center', cellPadding: 3 },
+        bodyStyles: { fontSize: 8, halign: 'center', cellPadding: 2.8, textColor: colorDarkGray },
+        styles: { lineColor: colorBorder, lineWidth: 0.5 },
+        columnStyles: { 
+          0: { halign: 'left', fontStyle: 'bold', cellWidth: 26 },
+          6: { fontStyle: 'bold', cellWidth: 25 }
+        }
       });
       currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 7;
     }
 
-    // TABELA 3: Mapeamento de Vazão dos Pontos de Consumo (Filtra não aplicáveis / vazios)
+    // TABELA 3: Mapeamento de Vazão dos Pontos de Consumo
     const pontosAtivos = (v.pontos_consumo_itens || []).filter(p => !p.nao_se_aplica && p.litros_10s);
     if (pontosAtivos.length > 0) {
       doc.setTextColor(...colorPurple);
-      doc.setFontSize(11);
+      doc.setFontSize(10.5);
       doc.setFont('helvetica', 'bold');
-      doc.text('3. MAPEAMENTO DE VAZÃO DOS PONTOS DE CONSUMO (LITROS/MINUTO)', margin, currentY);
+      doc.text('3. MAPEAMENTO DE VAZÃO DOS PONTOS DE CONSUMO (LITROS POR MINUTO)', margin, currentY);
 
       const pontosRows = pontosAtivos.map(p => {
         const vazao = p.vazao_l_min || 0;
         let statusVazao = 'NORMAL';
         let statusColor: [number, number, number] = [59, 130, 246]; // Azul
 
-        // Qualificação de acordo com a categoria solicitada pelo usuário:
         if (p.categoria === 'ducha_gas') {
           if (vazao <= 8.0) {
             statusVazao = 'ECONÔMICA (0 A 8 L/min)';
@@ -245,7 +288,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
         }
 
         const catLabel = p.categoria === 'ducha_gas' 
-          ? 'Ducha / Chuv. Gás' 
+          ? 'Ducha ou Chuveiro a Gás' 
           : p.categoria === 'chuveiro_eletrico' 
           ? 'Chuveiro Elétrico' 
           : p.categoria === 'ducha_higienica' 
@@ -255,7 +298,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
         return [
           p.local,
           catLabel,
-          `${p.litros_10s} L`,
+          `${p.litros_10s} Litros`,
           `${vazao.toFixed(1).replace('.', ',')} L/min`,
           { content: statusVazao, styles: { textColor: statusColor, fontStyle: 'bold' as const } }
         ];
@@ -264,20 +307,24 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
       autoTable(doc, {
         startY: currentY + 3,
         margin: { left: margin, right: margin },
-        head: [['PONTO / AMBIENTE', 'CATEGORIA', 'COLETA (10s)', 'VAZÃO (L/min)', 'CLASSIFICAÇÃO']],
+        head: [['PONTO / AMBIENTE', 'CATEGORIA DO PONTO', 'COLETA (10 SEGUNDOS)', 'VAZÃO ESTIMADA', 'CLASSIFICAÇÃO TÉCNICA']],
         body: pontosRows,
-        theme: 'striped',
-        headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 7.5, halign: 'center', cellPadding: 2 },
-        bodyStyles: { fontSize: 8, halign: 'center', cellPadding: 2 },
-        columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } }
+        theme: 'grid',
+        headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 7.5, fontStyle: 'bold', halign: 'center', cellPadding: 3 },
+        bodyStyles: { fontSize: 8, halign: 'center', cellPadding: 2.8, textColor: colorDarkGray },
+        styles: { lineColor: colorBorder, lineWidth: 0.5 },
+        columnStyles: { 
+          0: { halign: 'left', fontStyle: 'bold' },
+          1: { halign: 'left' }
+        }
       });
       currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 7;
     }
 
   } else {
-    // Modo Padrão / Geral
+    // Modo Geral / Tradicional
     doc.setTextColor(...colorPurple);
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.text('ANÁLISE DE CONSUMO E LEITURAS', margin, currentY);
     
@@ -285,97 +332,102 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     autoTable(doc, {
       startY: currentY + 3,
       margin: { left: margin, right: margin },
-      head: [['REFERÊNCIA', 'LEITURA INICIAL', 'LEITURA FINAL', 'DIFERENÇA (m³)', 'RECIPIENTE (L)']],
+      head: [['REFERÊNCIA', 'LEITURA INICIAL', 'LEITURA FINAL', 'DIFERENÇA (m³)', 'RECIPIENTE DE COLETA']],
       body: testesList.map((t, i) => [
-        `Teste #${i+1}`,
+        `Teste de Leitura #${i+1}`,
         t.leitura_antes || '-',
         t.leitura_depois || '-',
         { content: (t.diferenca || 0).toFixed(3).replace('.', ','), styles: { fontStyle: 'bold', textColor: (t.diferenca || 0) < 0 ? [239, 68, 68] : [16, 185, 129] } },
-        t.litros_recipiente || '-'
+        `${t.litros_recipiente || '-'} Litros`
       ]),
-      theme: 'striped',
-      headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 8.5, halign: 'center', cellPadding: 2.5 },
-      bodyStyles: { fontSize: 8.5, halign: 'center', textColor: colorDarkGray, cellPadding: 2.5 },
+      theme: 'grid',
+      headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 8, fontStyle: 'bold', halign: 'center', cellPadding: 3 },
+      bodyStyles: { fontSize: 8, halign: 'center', textColor: colorDarkGray, cellPadding: 2.8 },
+      styles: { lineColor: colorBorder, lineWidth: 0.5 },
       columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } }
     });
 
     currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 8;
   }
 
-  // Parâmetros Técnicos Gerais
+  // --- SEÇÃO DE PARÂMETROS TÉCNICOS COM LINHAS CLARAS E ESTRUTURADAS ---
   const dg = v.dados_gerais || ({} as DadosGerais);
   const statusRows: any[] = [];
 
   if (isAF && dg.serial_medidor_agua) {
     statusRows.push([
-      { content: 'STATUS MEDIDOR AF', styles: { fontStyle: 'bold' as const, textColor: 100 } },
-      { content: dg.estado_medidor_agua?.toUpperCase() || 'BOM', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
-      { content: 'Nº SÉRIE HIDRÔMETRO AF', styles: { fontStyle: 'bold' as const, textColor: 100 } },
-      { content: dg.serial_medidor_agua || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const } }
+      { content: 'STATUS DO MEDIDOR AF', styles: { fontStyle: 'bold' as const } },
+      { content: dg.estado_medidor_agua?.toUpperCase() || 'BOM', styles: { fontStyle: 'bold' as const, textColor: colorGreen, halign: 'center' } },
+      { content: 'NÚMERO DE SÉRIE DO HIDRÔMETRO AF', styles: { fontStyle: 'bold' as const } },
+      { content: dg.serial_medidor_agua || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const, halign: 'center' } }
     ]);
   }
 
   if (isAQ && dg.serial_medidor_aq) {
     statusRows.push([
-      { content: 'STATUS MEDIDOR AQ', styles: { fontStyle: 'bold' as const, textColor: 100 } },
-      { content: dg.estado_medidor_aq?.toUpperCase() || 'BOM', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
-      { content: 'Nº SÉRIE HIDRÔMETRO AQ', styles: { fontStyle: 'bold' as const, textColor: 100 } },
-      { content: dg.serial_medidor_aq || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const } }
+      { content: 'STATUS DO MEDIDOR AQ', styles: { fontStyle: 'bold' as const } },
+      { content: dg.estado_medidor_aq?.toUpperCase() || 'BOM', styles: { fontStyle: 'bold' as const, textColor: colorGreen, halign: 'center' } },
+      { content: 'NÚMERO DE SÉRIE DO HIDRÔMETRO AQ', styles: { fontStyle: 'bold' as const } },
+      { content: dg.serial_medidor_aq || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const, halign: 'center' } }
     ]);
   }
 
   if (isGas && dg.serial_medidor_gas) {
     statusRows.push([
-      { content: 'STATUS MEDIDOR GÁS', styles: { fontStyle: 'bold' as const, textColor: 100 } },
-      { content: dg.estado_medidor_gas?.toUpperCase() || 'BOM', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
-      { content: 'Nº SÉRIE MEDIDOR GÁS', styles: { fontStyle: 'bold' as const, textColor: 100 } },
-      { content: dg.serial_medidor_gas || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const } }
+      { content: 'STATUS DO MEDIDOR DE GÁS', styles: { fontStyle: 'bold' as const } },
+      { content: dg.estado_medidor_gas?.toUpperCase() || 'BOM', styles: { fontStyle: 'bold' as const, textColor: colorGreen, halign: 'center' } },
+      { content: 'NÚMERO DE SÉRIE DO MEDIDOR DE GÁS', styles: { fontStyle: 'bold' as const } },
+      { content: dg.serial_medidor_gas || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const, halign: 'center' } }
     ]);
   }
 
   if (dg.relogio_parado_verificado) {
     statusRows.push([
-      { content: 'ESTANQUEIDADE', styles: { fontStyle: 'bold' as const, textColor: 100 } },
-      { content: 'CONFORMIDADE (RELÓGIO PARADO)', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
-      { content: '', styles: {} },
-      { content: '', styles: {} }
+      { content: 'TESTE DE ESTANQUEIDADE', styles: { fontStyle: 'bold' as const } },
+      { content: 'EM CONFORMIDADE (RELÓGIO TOTALMENTE PARADO)', styles: { fontStyle: 'bold' as const, textColor: colorGreen, colSpan: 3 } }
     ]);
   }
 
   if (statusRows.length > 0) {
     autoTable(doc, {
-      startY: currentY + 3,
+      startY: currentY + 2,
       margin: { left: margin, right: margin },
-      theme: 'plain',
+      theme: 'grid',
       body: statusRows,
-      styles: { fontSize: 8, cellPadding: 2 },
+      styles: { fontSize: 7.5, cellPadding: 2.8, textColor: colorDarkGray, lineColor: colorBorder, lineWidth: 0.5 },
+      columnStyles: {
+        0: { cellWidth: 50, fillColor: colorLightGray },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 55, fillColor: colorLightGray },
+        3: { cellWidth: 34 }
+      }
     });
     currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 7;
   }
 
-  // 4. Verificação de Espaço para Parecer e Assinaturas
-  const neededSpace = 75;
-  if (currentY + neededSpace > height - 20) {
+  // --- SEÇÃO 4: PARECER TÉCNICO E ASSINATURAS ---
+  const neededSpace = 80;
+  if (currentY + neededSpace > height - 18) {
     doc.addPage();
     currentY = 22;
     
     doc.setFillColor(...colorPurple);
-    doc.rect(0, 0, width, 12, 'F');
+    doc.rect(0, 0, width, 13, 'F');
     doc.setTextColor(255);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text('PARECER TÉCNICO E VALIDAÇÃO JURÍDICA DA VISTORIA', width / 2, 8, { align: 'center' });
-    currentY = 22;
+    doc.text('PARECER TÉCNICO E VALIDAÇÃO DA UNIDADE VISTORIADA', width / 2, 8.5, { align: 'center' });
+    currentY = 20;
   }
 
-  // 4.1 Caixa do Parecer Técnico
-  const parecerText = v.parecer_tecnico || 'Vistoria técnica finalizada nas condições descritas neste laudo.';
+  // Caixa do Parecer Técnico Final
+  const parecerText = v.parecer_tecnico || 'Vistoria técnica finalizada nas condições descritas neste relatório.';
   doc.setFontSize(8.5);
   const splitParecer = doc.splitTextToSize(parecerText, width - (margin * 2) - 10);
   const parecerBoxH = Math.max(26, 12 + (splitParecer.length * 4.2));
 
   doc.setFillColor(...colorLightGray);
-  doc.setDrawColor(226, 232, 240);
+  doc.setDrawColor(...colorBorder);
   doc.setLineWidth(0.5);
   doc.roundedRect(margin, currentY, width - (margin * 2), parecerBoxH, 2, 2, 'FD');
   
@@ -389,24 +441,23 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   doc.setFontSize(8.5);
   doc.text(splitParecer, margin + 5, currentY + 12);
 
-  currentY += parecerBoxH + 8;
+  currentY += parecerBoxH + 7;
 
-  // 5. Bloco de Assinaturas Oficiais (Morador/Cliente e Técnico)
-  const sigBoxW = (width - (margin * 2) - 12) / 2;
+  // --- BLOCO DE ASSINATURAS OFICIAIS COM NOMES DISCRIMINADOS ---
+  const sigBoxW = (width - (margin * 2) - 10) / 2;
   const clientSigX = margin;
-  const techSigX = margin + sigBoxW + 12;
-  const sigBoxH = 46;
+  const techSigX = margin + sigBoxW + 10;
+  const sigBoxH = 47;
 
-  // Caixa da Assinatura do Cliente
+  // Caixa de Assinatura do Morador / Responsável
   doc.setFillColor(...colorLightGray);
-  doc.setDrawColor(226, 232, 240);
+  doc.setDrawColor(...colorBorder);
   doc.roundedRect(clientSigX, currentY, sigBoxW, sigBoxH, 2, 2, 'FD');
 
-  // Cabeçalho da Assinatura do Cliente
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...colorPurple);
-  doc.text('ASSINATURA DO CLIENTE / MORADOR', clientSigX + 4, currentY + 6);
+  doc.text('ASSINATURA DO MORADOR / RESPONSÁVEL', clientSigX + 4, currentY + 6);
   
   doc.setFontSize(6.5);
   doc.setFont('helvetica', 'normal');
@@ -417,7 +468,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   const clientSig = v.assinatura_cliente || v.assinatura;
   if (clientSig && clientSig.includes('base64,')) {
     try {
-      doc.addImage(clientSig, 'PNG', clientSigX + (sigBoxW - 55) / 2, currentY + 11, 55, 18);
+      doc.addImage(clientSig, 'PNG', clientSigX + (sigBoxW - 55) / 2, currentY + 11, 55, 17);
     } catch (e) {
       console.warn('Erro ao renderizar assinatura do cliente no PDF', e);
     }
@@ -428,22 +479,24 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   doc.setLineWidth(0.5);
   doc.line(clientSigX + 6, currentY + 31, clientSigX + sigBoxW - 6, currentY + 31);
 
-  // Nome e Cargo do Cliente
+  // Nome e Cargo do Morador / Responsável
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...colorDarkGray);
-  doc.text((v.responsavel_unidade || 'MORADOR / RESPONSÁVEL').toUpperCase(), clientSigX + sigBoxW / 2, currentY + 36, { align: 'center' });
+  const nomeMorador = (v.responsavel_unidade && v.responsavel_unidade.trim()) 
+    ? v.responsavel_unidade.toUpperCase() 
+    : 'MORADOR / RESPONSÁVEL PELA UNIDADE';
+  doc.text(nomeMorador, clientSigX + sigBoxW / 2, currentY + 36, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.setTextColor(100);
   doc.text('Acompanhante / Recebimento da Vistoria', clientSigX + sigBoxW / 2, currentY + 41, { align: 'center' });
 
-  // Caixa da Assinatura do Técnico
+  // Caixa de Assinatura do Técnico Responsável
   doc.setFillColor(...colorLightGray);
-  doc.setDrawColor(226, 232, 240);
+  doc.setDrawColor(...colorBorder);
   doc.roundedRect(techSigX, currentY, sigBoxW, sigBoxH, 2, 2, 'FD');
 
-  // Cabeçalho da Assinatura do Técnico
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...colorPurple);
@@ -458,7 +511,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   const techSig = v.assinatura_tecnico;
   if (techSig && techSig.includes('base64,')) {
     try {
-      doc.addImage(techSig, 'PNG', techSigX + (sigBoxW - 55) / 2, currentY + 11, 55, 18);
+      doc.addImage(techSig, 'PNG', techSigX + (sigBoxW - 55) / 2, currentY + 11, 55, 17);
     } catch (e) {
       console.warn('Erro ao renderizar assinatura do técnico no PDF', e);
     }
@@ -469,19 +522,22 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   doc.setLineWidth(0.5);
   doc.line(techSigX + 6, currentY + 31, techSigX + sigBoxW - 6, currentY + 31);
 
-  // Nome e Cargo do Técnico
+  // Nome e Cargo do Técnico Responsável
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...colorDarkGray);
-  doc.text((v.tecnico || 'TÉCNICO RESPONSÁVEL').toUpperCase(), techSigX + sigBoxW / 2, currentY + 36, { align: 'center' });
+  const nomeTecnico = (v.tecnico && v.tecnico.trim()) 
+    ? v.tecnico.toUpperCase() 
+    : 'TÉCNICO RESPONSÁVEL ECOWAVE';
+  doc.text(nomeTecnico, techSigX + sigBoxW / 2, currentY + 36, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.setTextColor(100);
   doc.text('Ecowave Tecnologia e Medições', techSigX + sigBoxW / 2, currentY + 41, { align: 'center' });
 
-  // --- PÁGINA 2+: GALERIA DE FOTOS (FORMATO 1:1 QUADRADO SEM DISTORÇÃO) ---
+  // --- PÁGINA 2+: ANEXO FOTOGRÁFICO COM FOTOS 1:1 REAIS SEM DISTORÇÃO ---
   let imgCount = 0;
-  const addImageToDoc = (dataUrl: string, label: string) => {
+  const addImageToDoc = async (dataUrl: string, label: string) => {
     if (!dataUrl || !dataUrl.includes('base64,')) return;
 
     if (imgCount % 2 === 0) {
@@ -490,40 +546,41 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
       doc.setFillColor(...colorPurple);
       doc.rect(0, 0, width, 14, 'F');
       doc.setTextColor(255);
-      doc.setFontSize(10);
+      doc.setFontSize(9.5);
       doc.setFont('helvetica', 'bold');
-      doc.text('ANEXO FOTOGRÁFICO - EVIDÊNCIAS DE CAMPO', width / 2, 9, { align: 'center' });
+      doc.text('ANEXO FOTOGRÁFICO - EVIDÊNCIAS TÉCNICAS DE CAMPO', width / 2, 9, { align: 'center' });
     }
     
     const isSecond = imgCount % 2 === 1;
     const yBase = isSecond ? 152 : 22;
-    const imgSize = 105; // 105mm x 105mm (Quadrado Perfeito 1:1)
+    const imgSize = 105; // 105mm x 105mm
     const xPos = (width - imgSize) / 2;
     
-    // Título / Etiqueta da Imagem
+    // Título da Imagem (Sem abreviações)
     doc.setTextColor(...colorPurple);
     doc.setFontSize(9.5);
     doc.setFont('helvetica', 'bold');
     doc.text(label.toUpperCase(), margin, yBase + 6);
     
-    // Moldura 1:1
-    doc.setDrawColor(226, 232, 240);
+    // Moldura 1:1 com bordas suaves
+    doc.setFillColor(245, 247, 250);
+    doc.setDrawColor(...colorBorder);
     doc.setLineWidth(0.5);
-    doc.rect(xPos - 1, yBase + 10, imgSize + 2, imgSize + 2);
+    doc.roundedRect(xPos - 1, yBase + 10, imgSize + 2, imgSize + 2, 1, 1, 'FD');
     
     try {
-      const isPng = dataUrl.startsWith('data:image/png');
-      doc.addImage(dataUrl, isPng ? 'PNG' : 'JPEG', xPos, yBase + 11, imgSize, imgSize);
+      const croppedBase64 = await cropToSquareBase64(dataUrl);
+      doc.addImage(croppedBase64, 'JPEG', xPos, yBase + 11, imgSize, imgSize);
     } catch (e) {
-      console.error('Erro ao adicionar foto ao PDF:', e);
+      console.error('Erro ao renderizar foto no anexo:', e);
     }
     
-    // Etiqueta completa de identificação com data, hora, unidade e ID
+    // Legenda Completa com dados técnicos
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      `Registro Oficial Ecowave • Data: ${v.data || ''} às ${v.hora || ''} • Unidade: ${v.unidade || '-'} • ID: #${v.id || 'N/A'}`, 
+      `Registro Oficial Ecowave • Data: ${v.data || ''} às ${v.hora || ''} • Condomínio: ${v.condominio || '-'} • Bloco ${v.bloco || '-'} Unidade ${v.unidade || '-'}`, 
       margin, 
       yBase + 11 + imgSize + 6
     );
@@ -531,47 +588,57 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     imgCount++;
   };
 
-  // Fotos de Caixas Acopladas (apenas ativas)
-  v.caixas_acopladas?.forEach(c => {
-    if (c.status !== 'nao_aplicavel' && c.imagem) {
-      addImageToDoc(c.imagem, `Caixa Acoplada: ${c.local}`);
+  // 1. Fotos de Caixas Acopladas (apenas ativas)
+  if (v.caixas_acopladas) {
+    for (const c of v.caixas_acopladas) {
+      if (c.status !== 'nao_aplicavel' && c.imagem) {
+        await addImageToDoc(c.imagem, `Caixa Acoplada: ${c.local}`);
+      }
     }
-  });
+  }
 
-  // Fotos de Aferições do Balde 10L
-  v.afericoes_medidores?.forEach(a => {
-    if (a.imagem_antes) addImageToDoc(a.imagem_antes, `Hidrômetro ${a.tipo} - Leitura Antes (Aferição 10L)`);
-    if (a.imagem_balde) addImageToDoc(a.imagem_balde, `Balde Graduado 10L - Hidrômetro ${a.tipo}`);
-    if (a.imagem_depois) addImageToDoc(a.imagem_depois, `Hidrômetro ${a.tipo} - Leitura Depois (Aferição 10L)`);
-  });
-
-  // Fotos de Pontos de Consumo (apenas ativos)
-  v.pontos_consumo_itens?.forEach(p => {
-    if (!p.nao_se_aplica && p.imagem) {
-      const catLabel = p.categoria === 'ducha_gas' 
-        ? 'Ducha / Chuv. Gás' 
-        : p.categoria === 'chuveiro_eletrico' 
-        ? 'Chuveiro Elétrico' 
-        : p.categoria === 'ducha_higienica' 
-        ? 'Ducha Higiênica' 
-        : 'Torneira';
-      addImageToDoc(p.imagem, `Ponto de Consumo: ${p.local} (${catLabel} - ${p.tipo})`);
+  // 2. Fotos de Aferições do Balde de 10 Litros
+  if (v.afericoes_medidores) {
+    for (const a of v.afericoes_medidores) {
+      if (a.imagem_antes) await addImageToDoc(a.imagem_antes, `Hidrômetro ${a.tipo} - Leitura Inicial (Aferição 10 Litros)`);
+      if (a.imagem_balde) await addImageToDoc(a.imagem_balde, `Balde Graduado (10 Litros) - Hidrômetro ${a.tipo}`);
+      if (a.imagem_depois) await addImageToDoc(a.imagem_depois, `Hidrômetro ${a.tipo} - Leitura Final (Aferição 10 Litros)`);
     }
-  });
+  }
 
-  // Fotos de Testes Genéricos (se houver)
-  (v.testes || []).forEach((t, i) => {
-    if (t.imagens?.antes) addImageToDoc(t.imagens.antes, `Teste #${i+1} - Leitura Inicial`);
-    if (t.imagens?.depois) addImageToDoc(t.imagens.depois, `Teste #${i+1} - Leitura Final`);
-    if (t.imagens?.recipiente) addImageToDoc(t.imagens.recipiente, `Teste #${i+1} - Verificação Recipiente`);
-  });
+  // 3. Fotos de Pontos de Consumo (apenas ativos)
+  if (v.pontos_consumo_itens) {
+    for (const p of v.pontos_consumo_itens) {
+      if (!p.nao_se_aplica && p.imagem) {
+        const catLabel = p.categoria === 'ducha_gas' 
+          ? 'Ducha ou Chuveiro a Gás' 
+          : p.categoria === 'chuveiro_eletrico' 
+          ? 'Chuveiro Elétrico' 
+          : p.categoria === 'ducha_higienica' 
+          ? 'Ducha Higiênica' 
+          : 'Torneira';
+        await addImageToDoc(p.imagem, `Ponto de Consumo: ${p.local} (${catLabel} - ${p.tipo})`);
+      }
+    }
+  }
 
-  if (dg.imagem_medidor_agua) addImageToDoc(dg.imagem_medidor_agua, 'Medidor AF (Água Fria)');
-  if (dg.imagem_serial_agua) addImageToDoc(dg.imagem_serial_agua, 'Serial do Hidrômetro AF');
-  if (dg.imagem_medidor_aq) addImageToDoc(dg.imagem_medidor_aq, 'Medidor AQ (Água Quente)');
-  if (dg.imagem_serial_aq) addImageToDoc(dg.imagem_serial_aq, 'Serial do Hidrômetro AQ');
-  if (dg.imagem_medidor_gas) addImageToDoc(dg.imagem_medidor_gas, 'Medidor de Gás');
-  if (dg.imagem_serial_gas) addImageToDoc(dg.imagem_serial_gas, 'Serial Medidor Gás');
+  // 4. Fotos de Testes Gerais (se houver)
+  if (v.testes) {
+    for (let i = 0; i < v.testes.length; i++) {
+      const t = v.testes[i];
+      if (t.imagens?.antes) await addImageToDoc(t.imagens.antes, `Teste de Leitura #${i+1} - Leitura Inicial`);
+      if (t.imagens?.depois) await addImageToDoc(t.imagens.depois, `Teste de Leitura #${i+1} - Leitura Final`);
+      if (t.imagens?.recipiente) await addImageToDoc(t.imagens.recipiente, `Teste de Leitura #${i+1} - Recipiente de Verificação`);
+    }
+  }
+
+  // 5. Fotos dos Medidores e Seriais
+  if (dg.imagem_medidor_agua) await addImageToDoc(dg.imagem_medidor_agua, 'Medidor AF (Água Fria)');
+  if (dg.imagem_serial_agua) await addImageToDoc(dg.imagem_serial_agua, 'Número de Série do Hidrômetro AF');
+  if (dg.imagem_medidor_aq) await addImageToDoc(dg.imagem_medidor_aq, 'Medidor AQ (Água Quente)');
+  if (dg.imagem_serial_aq) await addImageToDoc(dg.imagem_serial_aq, 'Número de Série do Hidrômetro AQ');
+  if (dg.imagem_medidor_gas) await addImageToDoc(dg.imagem_medidor_gas, 'Medidor de Gás');
+  if (dg.imagem_serial_gas) await addImageToDoc(dg.imagem_serial_gas, 'Número de Série do Medidor de Gás');
 
   const totalPages = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {

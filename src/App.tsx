@@ -97,8 +97,8 @@ export const getQualificacaoVazao = (categoria: CategoriaPonto, vazao: number) =
 };
 
 const DEFAULT_CAIXAS_ACOPLADAS: CaixaAcopladaItem[] = [
-  { id: '1', local: 'W.C. Social', status: 'ok' },
-  { id: '2', local: 'Suíte 1', status: 'ok' },
+  { id: '1', local: 'Banheiro Social', status: 'ok' },
+  { id: '2', local: 'Banheiro Suíte 1', status: 'ok' },
   { id: '3', local: 'Lavabo', status: 'nao_aplicavel' }
 ];
 
@@ -125,13 +125,13 @@ const DEFAULT_AFERICAO_AQ: AfericaoMedidorItem = {
 };
 
 const DEFAULT_PONTOS_CONSUMO: PontoConsumoItem[] = [
-  { id: '1', tipo: 'AF', categoria: 'torneira', local: 'Torneira Tanque (Área de Serviço)', litros_10s: '', vazao_l_min: 0 },
-  { id: '2', tipo: 'AF', categoria: 'torneira', local: 'Torneira Cozinha', litros_10s: '', vazao_l_min: 0 },
-  { id: '3', tipo: 'AF', categoria: 'ducha_gas', local: 'Ducha / Chuveiro W.C. Social', litros_10s: '', vazao_l_min: 0 },
-  { id: '4', tipo: 'AF', categoria: 'torneira', local: 'Torneira W.C. Social', litros_10s: '', vazao_l_min: 0 },
-  { id: '5', tipo: 'AF', categoria: 'ducha_gas', local: 'Ducha / Chuveiro Suíte', litros_10s: '', vazao_l_min: 0 },
-  { id: '6', tipo: 'AF', categoria: 'torneira', local: 'Torneira Suíte', litros_10s: '', vazao_l_min: 0 },
-  { id: '7', tipo: 'AF', categoria: 'torneira', local: 'Torneira Lavabo', litros_10s: '', vazao_l_min: 0, nao_se_aplica: true }
+  { id: '1', tipo: 'AF', categoria: 'torneira', local: 'Torneira do Tanque (Área de Serviço)', litros_10s: '', vazao_l_min: 0 },
+  { id: '2', tipo: 'AF', categoria: 'torneira', local: 'Torneira da Cozinha', litros_10s: '', vazao_l_min: 0 },
+  { id: '3', tipo: 'AF', categoria: 'ducha_gas', local: 'Ducha ou Chuveiro do Banheiro Social', litros_10s: '', vazao_l_min: 0 },
+  { id: '4', tipo: 'AF', categoria: 'torneira', local: 'Torneira do Banheiro Social', litros_10s: '', vazao_l_min: 0 },
+  { id: '5', tipo: 'AF', categoria: 'ducha_gas', local: 'Ducha ou Chuveiro da Suíte', litros_10s: '', vazao_l_min: 0 },
+  { id: '6', tipo: 'AF', categoria: 'torneira', local: 'Torneira da Suíte', litros_10s: '', vazao_l_min: 0 },
+  { id: '7', tipo: 'AF', categoria: 'torneira', local: 'Torneira do Lavabo', litros_10s: '', vazao_l_min: 0, nao_se_aplica: true }
 ];
 
 const INITIAL_VISTORIA: Partial<Vistoria> = {
@@ -1545,24 +1545,48 @@ export default function App() {
               />
             </div>
 
-            {/* 1. Assinatura do Morador / Cliente */}
-            <SignatureInput 
-              label={`Assinatura do Morador / Cliente (${vistoria.responsavel_unidade || 'Responsável'})`}
-              helperText="O morador ou responsável pela unidade deve assinar abaixo para comprovar a presença e o recebimento da vistoria."
-              onSave={b => {
-                handleUpdate('assinatura_cliente', b);
-                handleUpdate('assinatura', b);
-              }} 
-              initialValue={vistoria.assinatura_cliente || vistoria.assinatura}
-            />
+            {/* 1. Assinatura do Morador / Responsável */}
+            <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginBottom: '1.25rem', border: '1px solid var(--border)' }}>
+              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                <label style={{ fontWeight: '600' }}>Nome do Morador / Responsável pelo Acompanhamento</label>
+                <input 
+                  type="text" 
+                  placeholder="Ex: João da Silva" 
+                  value={vistoria.responsavel_unidade || ''} 
+                  onChange={e => handleUpdate('responsavel_unidade', e.target.value)}
+                  style={{ marginBottom: '0.25rem' }}
+                />
+              </div>
+              <SignatureInput 
+                label="Assinatura do Morador / Responsável"
+                helperText="Declaro que acompanhei a vistoria técnica e recebi este laudo."
+                onSave={b => {
+                  handleUpdate('assinatura_cliente', b);
+                  handleUpdate('assinatura', b);
+                }} 
+                initialValue={vistoria.assinatura_cliente || vistoria.assinatura}
+              />
+            </div>
 
-            {/* 2. Assinatura do Técnico Ecowave */}
-            <SignatureInput 
-              label={`Assinatura do Técnico (${vistoria.tecnico || 'Técnico Ecowave'})`}
-              helperText="Assinatura técnica do profissional responsável pela execução da vistoria."
-              onSave={b => handleUpdate('assinatura_tecnico', b)} 
-              initialValue={vistoria.assinatura_tecnico}
-            />
+            {/* 2. Assinatura do Técnico Responsável Ecowave */}
+            <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginBottom: '1.25rem', border: '1px solid var(--border)' }}>
+              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                <label style={{ fontWeight: '600' }}>Nome do Técnico Responsável</label>
+                <input 
+                  type="text" 
+                  placeholder="Ex: Carlos Oliveira" 
+                  value={vistoria.tecnico || ''} 
+                  onChange={e => handleUpdate('tecnico', e.target.value)}
+                  style={{ marginBottom: '0.25rem' }}
+                />
+              </div>
+              <SignatureInput 
+                label="Assinatura do Técnico Responsável"
+                helperText="Atesto a execução técnica de todos os testes e análises descritos neste laudo."
+                onSave={b => handleUpdate('assinatura_tecnico', b)} 
+                initialValue={vistoria.assinatura_tecnico}
+              />
+            </div>
 
             {/* Botões do Passo 5: Visualizar Laudo, Voltar e Salvar */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '1.5rem' }}>
