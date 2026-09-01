@@ -122,14 +122,15 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
 
   // Se for ALTO CONSUMO, renderiza o conjunto de 3 tabelas especializadas
   if (isAltoConsumo) {
-    // TABELA 1: Inspeção de Caixas Acopladas (Vasos Sanitários)
-    if (v.caixas_acopladas && v.caixas_acopladas.length > 0) {
+    // TABELA 1: Inspeção de Caixas Acopladas (Filtra não aplicáveis para economizar espaço)
+    const caixasAtivas = (v.caixas_acopladas || []).filter(c => c.status !== 'nao_aplicavel');
+    if (caixasAtivas.length > 0) {
       doc.setTextColor(...colorPurple);
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.text('1. INSPEÇÃO PRELIMINAR DE CAIXAS ACOPLADAS (VASOS SANITÁRIOS)', margin, currentY);
 
-      const caixasRows = v.caixas_acopladas.map(c => {
+      const caixasRows = caixasAtivas.map(c => {
         let statusLabel = '✅ EM CONFORMIDADE (SEM VAZAMENTO)';
         let statusColor: [number, number, number] = colorGreen;
         let diag = 'Vedação inferior e nível do ladrão normais';
@@ -146,10 +147,6 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
           statusLabel = '❌ VAZAMENTO DUPLO (LADRÃO E VEDAÇÃO)';
           statusColor = [220, 38, 38];
           diag = 'Transbordamento no ladrão e falha na vedação';
-        } else if (c.status === 'nao_aplicavel') {
-          statusLabel = '⚪ NÃO APLICÁVEL';
-          statusColor = [100, 116, 139];
-          diag = 'Inexistente ou inacessível';
         }
 
         if (c.observacao) diag += ` • ${c.observacao}`;
@@ -208,29 +205,58 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
       currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 7;
     }
 
-    // TABELA 3: Mapeamento de Vazão dos Pontos de Consumo (10 segundos)
-    if (v.pontos_consumo_itens && v.pontos_consumo_itens.length > 0) {
+    // TABELA 3: Mapeamento de Vazão dos Pontos de Consumo (Filtra não aplicáveis / vazios)
+    const pontosAtivos = (v.pontos_consumo_itens || []).filter(p => !p.nao_se_aplica && p.litros_10s);
+    if (pontosAtivos.length > 0) {
       doc.setTextColor(...colorPurple);
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.text('3. MAPEAMENTO DE VAZÃO DOS PONTOS DE CONSUMO (LITROS/MINUTO)', margin, currentY);
 
-      const pontosRows = v.pontos_consumo_itens.map(p => {
+      const pontosRows = pontosAtivos.map(p => {
         const vazao = p.vazao_l_min || 0;
         let statusVazao = 'NORMAL';
-        let statusColor: [number, number, number] = colorDarkGray;
-        if (vazao > 12) {
-          statusVazao = 'ELEVADA (ALTO CONSUMO)';
-          statusColor = [220, 38, 38];
-        } else if (vazao > 0 && vazao <= 6) {
-          statusVazao = 'ECONÔMICA';
-          statusColor = colorGreen;
+        let statusColor: [number, number, number] = [59, 130, 246]; // Azul
+
+        // Qualificação de acordo com a categoria solicitada pelo usuário:
+        if (p.categoria === 'ducha_gas') {
+          if (vazao <= 8.0) {
+            statusVazao = 'ECONÔMICA (0 A 8 L/min)';
+            statusColor = colorGreen;
+          } else if (vazao <= 13.0) {
+            statusVazao = 'NORMAL (9 A 13 L/min)';
+            statusColor = [59, 130, 246];
+          } else {
+            statusVazao = 'ALTO CONSUMO (> 13 L/min)';
+            statusColor = [220, 38, 38];
+          }
+        } else {
+          // Torneira, Chuveiro Elétrico e Ducha Higiênica
+          if (vazao <= 5.0) {
+            statusVazao = 'ECONÔMICO (0 A 5 L/min)';
+            statusColor = colorGreen;
+          } else if (vazao <= 7.0) {
+            statusVazao = 'NORMAL (5 A 7 L/min)';
+            statusColor = [59, 130, 246];
+          } else {
+            statusVazao = 'ALTO CONSUMO (> 7 L/min)';
+            statusColor = [220, 38, 38];
+          }
         }
+
+        const catLabel = p.categoria === 'ducha_gas' 
+          ? 'Ducha / Chuv. Gás' 
+          : p.categoria === 'chuveiro_eletrico' 
+          ? 'Chuveiro Elétrico' 
+          : p.categoria === 'ducha_higienica' 
+          ? 'Ducha Higiênica' 
+          : 'Torneira';
+
         return [
           p.local,
-          p.tipo,
-          p.litros_10s ? `${p.litros_10s} L` : '-',
-          `${vazao.toFixed(1)} L/min`,
+          catLabel,
+          `${p.litros_10s} L`,
+          `${vazao.toFixed(1).replace('.', ',')} L/min`,
           { content: statusVazao, styles: { textColor: statusColor, fontStyle: 'bold' as const } }
         ];
       });
@@ -238,7 +264,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
       autoTable(doc, {
         startY: currentY + 3,
         margin: { left: margin, right: margin },
-        head: [['PONTO / AMBIENTE', 'TIPO', 'COLETA (10s)', 'VAZÃO PROJETADA (L/min)', 'CLASSIFICAÇÃO']],
+        head: [['PONTO / AMBIENTE', 'CATEGORIA', 'COLETA (10s)', 'VAZÃO (L/min)', 'CLASSIFICAÇÃO']],
         body: pontosRows,
         theme: 'striped',
         headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 7.5, halign: 'center', cellPadding: 2 },
@@ -276,7 +302,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 8;
   }
 
-  // Parâmetros Técnicos Gerais (se não for alto consumo ou para dados de medidor)
+  // Parâmetros Técnicos Gerais
   const dg = v.dados_gerais || ({} as DadosGerais);
   const statusRows: any[] = [];
 
@@ -453,7 +479,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   doc.setTextColor(100);
   doc.text('Ecowave Tecnologia e Medições', techSigX + sigBoxW / 2, currentY + 41, { align: 'center' });
 
-  // --- PÁGINA 2+: GALERIA DE FOTOS ---
+  // --- PÁGINA 2+: GALERIA DE FOTOS (FORMATO 1:1 QUADRADO SEM DISTORÇÃO) ---
   let imgCount = 0;
   const addImageToDoc = (dataUrl: string, label: string) => {
     if (!dataUrl || !dataUrl.includes('base64,')) return;
@@ -470,38 +496,46 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     }
     
     const isSecond = imgCount % 2 === 1;
-    const yBase = isSecond ? 148 : 22;
-    const imgW = 130;
-    const imgH = 97.5;
-    const xPos = (width - imgW) / 2;
+    const yBase = isSecond ? 152 : 22;
+    const imgSize = 105; // 105mm x 105mm (Quadrado Perfeito 1:1)
+    const xPos = (width - imgSize) / 2;
     
+    // Título / Etiqueta da Imagem
     doc.setTextColor(...colorPurple);
-    doc.setFontSize(10);
+    doc.setFontSize(9.5);
     doc.setFont('helvetica', 'bold');
-    doc.text(label.toUpperCase(), margin, yBase + 8);
+    doc.text(label.toUpperCase(), margin, yBase + 6);
     
+    // Moldura 1:1
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.5);
-    doc.rect(xPos - 1, yBase + 12, imgW + 2, imgH + 2);
+    doc.rect(xPos - 1, yBase + 10, imgSize + 2, imgSize + 2);
     
     try {
       const isPng = dataUrl.startsWith('data:image/png');
-      doc.addImage(dataUrl, isPng ? 'PNG' : 'JPEG', xPos, yBase + 13, imgW, imgH);
+      doc.addImage(dataUrl, isPng ? 'PNG' : 'JPEG', xPos, yBase + 11, imgSize, imgSize);
     } catch (e) {
       console.error('Erro ao adicionar foto ao PDF:', e);
     }
     
+    // Etiqueta completa de identificação com data, hora, unidade e ID
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
-    doc.text(`Registro Oficial Ecowave • Data: ${v.data || ''} às ${v.hora || ''}`, margin, yBase + 13 + imgH + 6);
+    doc.text(
+      `Registro Oficial Ecowave • Data: ${v.data || ''} às ${v.hora || ''} • Unidade: ${v.unidade || '-'} • ID: #${v.id || 'N/A'}`, 
+      margin, 
+      yBase + 11 + imgSize + 6
+    );
     
     imgCount++;
   };
 
-  // Fotos de Caixas Acopladas
+  // Fotos de Caixas Acopladas (apenas ativas)
   v.caixas_acopladas?.forEach(c => {
-    if (c.imagem) addImageToDoc(c.imagem, `Caixa Acoplada: ${c.local}`);
+    if (c.status !== 'nao_aplicavel' && c.imagem) {
+      addImageToDoc(c.imagem, `Caixa Acoplada: ${c.local}`);
+    }
   });
 
   // Fotos de Aferições do Balde 10L
@@ -511,9 +545,18 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     if (a.imagem_depois) addImageToDoc(a.imagem_depois, `Hidrômetro ${a.tipo} - Leitura Depois (Aferição 10L)`);
   });
 
-  // Fotos de Pontos de Consumo
+  // Fotos de Pontos de Consumo (apenas ativos)
   v.pontos_consumo_itens?.forEach(p => {
-    if (p.imagem) addImageToDoc(p.imagem, `Ponto de Consumo: ${p.local} (${p.tipo})`);
+    if (!p.nao_se_aplica && p.imagem) {
+      const catLabel = p.categoria === 'ducha_gas' 
+        ? 'Ducha / Chuv. Gás' 
+        : p.categoria === 'chuveiro_eletrico' 
+        ? 'Chuveiro Elétrico' 
+        : p.categoria === 'ducha_higienica' 
+        ? 'Ducha Higiênica' 
+        : 'Torneira';
+      addImageToDoc(p.imagem, `Ponto de Consumo: ${p.local} (${catLabel} - ${p.tipo})`);
+    }
   });
 
   // Fotos de Testes Genéricos (se houver)

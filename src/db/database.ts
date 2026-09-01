@@ -45,12 +45,17 @@ export interface AfericaoMedidorItem {
   imagem_depois?: string;
 }
 
+export type CategoriaPonto = 'torneira' | 'ducha_gas' | 'chuveiro_eletrico' | 'ducha_higienica';
+
 export interface PontoConsumoItem {
   id: string;
   tipo: 'AF' | 'AQ';
-  local: string; // Ex: 'Torneira Tanque (Área de Serviço)', 'Torneira Cozinha', 'Torneira Lavabo', 'Torneira W.C. Social', 'Torneira Suíte'
+  categoria: CategoriaPonto; // 'torneira' | 'ducha_gas' | 'chuveiro_eletrico' | 'ducha_higienica'
+  local: string;
   litros_10s: string; // Coleta em 10 segundos
   vazao_l_min: number; // litros_10s * 6
+  classificacao?: 'economico' | 'normal' | 'alto_consumo';
+  nao_se_aplica?: boolean;
   imagem?: string;
   observacao?: string;
 }
@@ -129,7 +134,7 @@ export class EcowaveDatabase extends Dexie {
 
   constructor() {
     super('EcowaveDatabase');
-    this.version(3).stores({
+    this.version(4).stores({
       vistorias: '++id, data, condominio, tecnico, unidade, createdAt'
     });
   }

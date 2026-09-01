@@ -9,7 +9,8 @@ import type {
   TesteLeitura, 
   CaixaAcopladaItem, 
   AfericaoMedidorItem, 
-  PontoConsumoItem 
+  PontoConsumoItem,
+  CategoriaPonto 
 } from './db/database';
 import { 
   Plus, 
@@ -79,10 +80,25 @@ export const isTipoAgua = (v: Partial<Vistoria>) => {
   return isTipoAF(v) || isTipoAQ(v);
 };
 
+export const getQualificacaoVazao = (categoria: CategoriaPonto, vazao: number) => {
+  if (vazao <= 0) return { label: 'Aguardando Medição', color: 'var(--text-muted)' };
+  
+  if (categoria === 'ducha_gas') {
+    if (vazao <= 8.0) return { label: '🟢 Econômica (0 a 8 L/min)', color: 'var(--success)' };
+    if (vazao <= 13.0) return { label: '🔵 Normal (9 a 13 L/min)', color: 'var(--primary)' };
+    return { label: '🔴 Alto Consumo (> 13 L/min)', color: 'var(--error)' };
+  } else {
+    // Torneira, Chuveiro Elétrico e Ducha Higiênica
+    if (vazao <= 5.0) return { label: '🟢 Econômico (0 a 5 L/min)', color: 'var(--success)' };
+    if (vazao <= 7.0) return { label: '🔵 Normal (5 a 7 L/min)', color: 'var(--primary)' };
+    return { label: '🔴 Alto Consumo (> 7 L/min)', color: 'var(--error)' };
+  }
+};
+
 const DEFAULT_CAIXAS_ACOPLADAS: CaixaAcopladaItem[] = [
   { id: '1', local: 'W.C. Social', status: 'ok' },
   { id: '2', local: 'Suíte 1', status: 'ok' },
-  { id: '3', local: 'Lavabo', status: 'ok' }
+  { id: '3', local: 'Lavabo', status: 'nao_aplicavel' }
 ];
 
 const DEFAULT_AFERICAO_AF: AfericaoMedidorItem = {
@@ -108,11 +124,13 @@ const DEFAULT_AFERICAO_AQ: AfericaoMedidorItem = {
 };
 
 const DEFAULT_PONTOS_CONSUMO: PontoConsumoItem[] = [
-  { id: '1', tipo: 'AF', local: 'Torneira Tanque (Área de Serviço)', litros_10s: '', vazao_l_min: 0 },
-  { id: '2', tipo: 'AF', local: 'Torneira Cozinha', litros_10s: '', vazao_l_min: 0 },
-  { id: '3', tipo: 'AF', local: 'Torneira Lavabo', litros_10s: '', vazao_l_min: 0 },
-  { id: '4', tipo: 'AF', local: 'Torneira W.C. Social', litros_10s: '', vazao_l_min: 0 },
-  { id: '5', tipo: 'AF', local: 'Torneira Suíte', litros_10s: '', vazao_l_min: 0 }
+  { id: '1', tipo: 'AF', categoria: 'torneira', local: 'Torneira Tanque (Área de Serviço)', litros_10s: '', vazao_l_min: 0 },
+  { id: '2', tipo: 'AF', categoria: 'torneira', local: 'Torneira Cozinha', litros_10s: '', vazao_l_min: 0 },
+  { id: '3', tipo: 'AF', categoria: 'ducha_gas', local: 'Ducha / Chuveiro W.C. Social', litros_10s: '', vazao_l_min: 0 },
+  { id: '4', tipo: 'AF', categoria: 'torneira', local: 'Torneira W.C. Social', litros_10s: '', vazao_l_min: 0 },
+  { id: '5', tipo: 'AF', categoria: 'ducha_gas', local: 'Ducha / Chuveiro Suíte', litros_10s: '', vazao_l_min: 0 },
+  { id: '6', tipo: 'AF', categoria: 'torneira', local: 'Torneira Suíte', litros_10s: '', vazao_l_min: 0 },
+  { id: '7', tipo: 'AF', categoria: 'torneira', local: 'Torneira Lavabo', litros_10s: '', vazao_l_min: 0, nao_se_aplica: true }
 ];
 
 const INITIAL_VISTORIA: Partial<Vistoria> = {
@@ -198,7 +216,6 @@ export default function App() {
     
     const item = { ...list[itemIdx], [field]: value };
 
-    // Cálculo automático da aferição do hidrômetro
     const antesStr = field === 'leitura_antes' ? value : item.leitura_antes;
     const depoisStr = field === 'leitura_depois' ? value : item.leitura_depois;
     const baldeVal = field === 'volume_balde_litros' ? parseFloat(value) : (item.volume_balde_litros || 10);
@@ -244,7 +261,8 @@ export default function App() {
     list.push({
       id: String(Date.now()),
       tipo: 'AF',
-      local: `Ponto de Consumo #${list.length + 1}`,
+      categoria: 'ducha_gas',
+      local: `Novo Ponto #${list.length + 1}`,
       litros_10s: '',
       vazao_l_min: 0
     });
@@ -630,10 +648,11 @@ export default function App() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
                 {(vistoria.caixas_acopladas || DEFAULT_CAIXAS_ACOPLADAS).map((caixa, idx) => (
                   <div key={caixa.id || idx} style={{
-                    backgroundColor: 'var(--background)',
+                    backgroundColor: caixa.status === 'nao_aplicavel' ? 'rgba(100, 116, 139, 0.08)' : 'var(--background)',
                     border: '1px solid var(--border)',
                     borderRadius: '12px',
-                    padding: '1rem'
+                    padding: '1rem',
+                    opacity: caixa.status === 'nao_aplicavel' ? 0.75 : 1
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                       <input 
@@ -664,14 +683,14 @@ export default function App() {
                       style={{ 
                         fontWeight: '600',
                         borderColor: caixa.status === 'ok' ? 'var(--success)' : caixa.status === 'nao_aplicavel' ? 'var(--border)' : 'var(--error)',
-                        color: caixa.status === 'ok' ? 'var(--success)' : caixa.status === 'nao_aplicavel' ? 'var(--text)' : 'var(--error)'
+                        color: caixa.status === 'ok' ? 'var(--success)' : caixa.status === 'nao_aplicavel' ? 'var(--text-muted)' : 'var(--error)'
                       }}
                     >
                       <option value="ok">🟢 Em Conformidade (Sem Vazamento)</option>
                       <option value="vazamento_ladrao">🔴 Vazamento pelo Ladrão (Nível Alto)</option>
                       <option value="vazamento_borracha">🔴 Vazamento pela Borracha Inferior</option>
                       <option value="vazamento_ambos">🔴 Vazamento Duplo (Ladrão e Borracha)</option>
-                      <option value="nao_aplicavel">⚪ Não Aplicável / Inexistente</option>
+                      <option value="nao_aplicavel">⚪ Não se Aplica (Inexistente neste imóvel)</option>
                     </select>
 
                     {caixa.status !== 'ok' && caixa.status !== 'nao_aplicavel' && (
@@ -742,7 +761,6 @@ export default function App() {
               </div>
             </div>
           ) : (
-            /* Modo Geral */
             <div className="card">
               <h2>Testes de Leitura</h2>
               <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '0.5rem', marginBottom: '1.5rem' }}>
@@ -946,7 +964,7 @@ export default function App() {
                         {afericaoAF.status === 'conforme' ? (
                           <>
                             <CheckCircle2 size={16} />
-                            <span>Hidrômetro Aferido (Leitura Conforme)</span>
+                            <span>Hidrômetro Aferido (Leitura Conforme com Balde)</span>
                           </>
                         ) : (
                           <>
@@ -960,7 +978,7 @@ export default function App() {
                 );
               })()}
 
-              {/* Bloco AQ (se aplicável) */}
+              {/* Bloco AQ */}
               {isTipoAQ(vistoria) && (() => {
                 const afericaoAQ = vistoria.afericoes_medidores?.find(a => a.tipo === 'AQ') || DEFAULT_AFERICAO_AQ;
                 return (
@@ -1132,80 +1150,128 @@ export default function App() {
                 <h2 style={{ margin: 0 }}>3. Vazão dos Pontos de Consumo</h2>
               </div>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                Abra a torneira e colete a água durante <strong>10 segundos</strong>. O aplicativo multiplicará automaticamente por 6 para obter a vazão por minuto (L/min).
+                Abra a torneira ou ducha e colete a água durante <strong>10 segundos</strong>. O aplicativo calculará a vazão por minuto (L/min) e a qualificação de consumo.
               </p>
 
               {/* Cronômetro Regressivo de 10 segundos */}
               <StopwatchTimer initialSeconds={10} />
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-                {(vistoria.pontos_consumo_itens || DEFAULT_PONTOS_CONSUMO).map((ponto, idx) => (
-                  <div key={ponto.id || idx} style={{
-                    backgroundColor: 'var(--background)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '12px',
-                    padding: '1rem'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                      <input 
-                        type="text"
-                        value={ponto.local}
-                        onChange={e => updatePontoConsumo(idx, 'local', e.target.value)}
-                        style={{ fontWeight: 'bold', fontSize: '0.95rem', width: 'auto', marginBottom: 0, padding: '4px 8px' }}
-                      />
-                      {(vistoria.pontos_consumo_itens?.length || 0) > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removePontoConsumo(idx)}
-                          className="secondary"
-                          style={{ padding: '4px 8px', width: 'auto', margin: 0, color: 'var(--error)' }}
-                          title="Remover Ponto"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
+                {(vistoria.pontos_consumo_itens || DEFAULT_PONTOS_CONSUMO).map((ponto, idx) => {
+                  const qual = getQualificacaoVazao(ponto.categoria, ponto.vazao_l_min || 0);
+                  const isNaoAplica = ponto.nao_se_aplica || false;
 
-                    <div className="grid-2" style={{ alignItems: 'center', marginBottom: '0.75rem' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Coleta em 10s (Litros)</label>
+                  return (
+                    <div key={ponto.id || idx} style={{
+                      backgroundColor: isNaoAplica ? 'rgba(100, 116, 139, 0.08)' : 'var(--background)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '12px',
+                      padding: '1rem',
+                      opacity: isNaoAplica ? 0.65 : 1
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                         <input 
                           type="text"
-                          inputMode="decimal"
-                          placeholder="Ex: 1,0"
-                          value={ponto.litros_10s}
-                          onChange={e => updatePontoConsumo(idx, 'litros_10s', e.target.value)}
-                          style={{ marginBottom: 0 }}
+                          value={ponto.local}
+                          onChange={e => updatePontoConsumo(idx, 'local', e.target.value)}
+                          style={{ fontWeight: 'bold', fontSize: '0.95rem', width: 'auto', marginBottom: 0, padding: '4px 8px' }}
+                          disabled={isNaoAplica}
                         />
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-muted)', cursor: 'pointer', margin: 0 }}>
+                            <input 
+                              type="checkbox"
+                              checked={isNaoAplica}
+                              onChange={e => updatePontoConsumo(idx, 'nao_se_aplica', e.target.checked)}
+                              style={{ width: '16px', height: '16px', margin: 0 }}
+                            />
+                            <span>Não se aplica</span>
+                          </label>
+
+                          {(vistoria.pontos_consumo_itens?.length || 0) > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removePontoConsumo(idx)}
+                              className="secondary"
+                              style={{ padding: '4px 8px', width: 'auto', margin: 0, color: 'var(--error)' }}
+                              title="Remover Ponto"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
-                      <div style={{
-                        backgroundColor: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        padding: '0.6rem 0.8rem',
-                        borderRadius: '8px',
-                        textAlign: 'center'
-                      }}>
-                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                          Vazão Projetada
-                        </div>
-                        <div style={{ 
-                          fontSize: '1.2rem', 
-                          fontWeight: 'bold', 
-                          color: (ponto.vazao_l_min || 0) > 12 ? 'var(--error)' : 'var(--primary)' 
-                        }}>
-                          {(ponto.vazao_l_min || 0).toFixed(1).replace('.', ',')} <span style={{ fontSize: '0.75rem', fontWeight: 'normal' }}>L/min</span>
-                        </div>
-                      </div>
+                      {!isNaoAplica && (
+                        <>
+                          <div className="grid-2" style={{ marginBottom: '0.75rem' }}>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Categoria do Ponto</label>
+                              <select
+                                value={ponto.categoria || 'torneira'}
+                                onChange={e => updatePontoConsumo(idx, 'categoria', e.target.value)}
+                                style={{ marginBottom: 0 }}
+                              >
+                                <option value="torneira">🚰 Torneira</option>
+                                <option value="ducha_gas">🚿 Ducha / Chuveiro a Gás</option>
+                                <option value="chuveiro_eletrico">⚡ Chuveiro Elétrico</option>
+                                <option value="ducha_higienica">🚽 Ducha Higiênica</option>
+                              </select>
+                            </div>
+
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Coleta em 10s (Litros)</label>
+                              <input 
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="Ex: 1,0"
+                                value={ponto.litros_10s}
+                                onChange={e => updatePontoConsumo(idx, 'litros_10s', e.target.value)}
+                                style={{ marginBottom: 0 }}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{
+                            backgroundColor: 'var(--surface)',
+                            border: '1px solid var(--border)',
+                            padding: '0.75rem',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '0.75rem'
+                          }}>
+                            <div>
+                              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                Vazão Projetada
+                              </div>
+                              <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--text)' }}>
+                                {(ponto.vazao_l_min || 0).toFixed(1).replace('.', ',')} <span style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>L/min</span>
+                              </div>
+                            </div>
+
+                            <div style={{
+                              fontWeight: 'bold',
+                              fontSize: '0.8rem',
+                              color: qual.color,
+                              textAlign: 'right'
+                            }}>
+                              {qual.label}
+                            </div>
+                          </div>
+
+                          <CameraInput 
+                            label="Foto do Ponto / Teste (Opcional)" 
+                            onPhotoTaken={(b64) => updatePontoConsumo(idx, 'imagem', b64)} 
+                            initialValue={ponto.imagem}
+                          />
+                        </>
+                      )}
                     </div>
-
-                    <CameraInput 
-                      label="Foto do Ponto / Teste (Opcional)" 
-                      onPhotoTaken={(b64) => updatePontoConsumo(idx, 'imagem', b64)} 
-                      initialValue={ponto.imagem}
-                    />
-                  </div>
-                ))}
+                  );
+                })}
 
                 <button
                   type="button"
