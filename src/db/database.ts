@@ -3,8 +3,8 @@ import Dexie, { type Table } from 'dexie';
 export interface ImagemVistoria {
   id?: number;
   vistoriaId: number;
-  bloco: string; // ex: 'teste_1', 'medidor', 'ponto_consumo'
-  tipo: string; // ex: 'antes', 'depois', 'recipiente'
+  bloco: string;
+  tipo: string;
   dataUrl: string;
   timestamp: string;
 }
@@ -21,6 +21,40 @@ export interface TesteLeitura {
   };
 }
 
+// Modelos especializados para Alto Consumo
+export interface CaixaAcopladaItem {
+  id: string;
+  local: string; // Ex: 'W.C. Social', 'Suíte 1', 'Lavabo'
+  status: 'ok' | 'vazamento_ladrao' | 'vazamento_borracha' | 'vazamento_ambos' | 'nao_aplicavel';
+  observacao?: string;
+  imagem?: string;
+  video?: string;
+}
+
+export interface AfericaoMedidorItem {
+  tipo: 'AF' | 'AQ';
+  leitura_antes: string;
+  leitura_depois: string;
+  diferenca_m3: number;
+  volume_balde_litros: number; // Padrão: 10
+  litros_medidos_hidrometro: number;
+  desvio_percentual: number;
+  status: 'conforme' | 'divergente';
+  imagem_antes?: string;
+  imagem_balde?: string;
+  imagem_depois?: string;
+}
+
+export interface PontoConsumoItem {
+  id: string;
+  tipo: 'AF' | 'AQ';
+  local: string; // Ex: 'Torneira Tanque (Área de Serviço)', 'Torneira Cozinha', 'Torneira Lavabo', 'Torneira W.C. Social', 'Torneira Suíte'
+  litros_10s: string; // Coleta em 10 segundos
+  vazao_l_min: number; // litros_10s * 6
+  imagem?: string;
+  observacao?: string;
+}
+
 export interface PontoConsumo {
   nome_ponto: string;
   tempo_segundos: string;
@@ -34,7 +68,7 @@ export interface VerificacaoInterna {
   item: string;
   status: 'ok' | 'vazamento';
   imagem?: string;
-  video?: string; // Base64 do vídeo de evidência
+  video?: string;
 }
 
 export interface DadosGerais {
@@ -51,7 +85,7 @@ export interface DadosGerais {
   serial_medidor_gas?: string;
   imagem_serial_gas?: string;
   relogio_parado_verificado: boolean;
-  video_relogio_parado?: string; // Base64 do vídeo curto
+  video_relogio_parado?: string;
   verificacoes_internas: VerificacaoInterna[];
   sistema_aquecimento: boolean;
   tipo_aquecimento?: 'aquecedor' | 'boiler' | 'caldeira';
@@ -74,6 +108,12 @@ export interface Vistoria {
   responsavel_unidade: string;
   tipo_vistoria: string;
   subtipo_vistoria?: string;
+  
+  // Módulos especializados de Alto Consumo
+  caixas_acopladas?: CaixaAcopladaItem[];
+  afericoes_medidores?: AfericaoMedidorItem[];
+  pontos_consumo_itens?: PontoConsumoItem[];
+
   testes: TesteLeitura[];
   ponto_consumo?: PontoConsumo;
   dados_gerais: DadosGerais;
@@ -84,15 +124,15 @@ export interface Vistoria {
   createdAt: number;
 }
 
-export class EcoWaveDatabase extends Dexie {
+export class EcowaveDatabase extends Dexie {
   vistorias!: Table<Vistoria>;
 
   constructor() {
-    super('EcoWaveDatabase');
-    this.version(2).stores({
+    super('EcowaveDatabase');
+    this.version(3).stores({
       vistorias: '++id, data, condominio, tecnico, unidade, createdAt'
     });
   }
 }
 
-export const db = new EcoWaveDatabase();
+export const db = new EcowaveDatabase();

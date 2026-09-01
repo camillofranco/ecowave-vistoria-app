@@ -1,11 +1,12 @@
 {
-  "version": "1.9.0",
+  "version": "2.0.0",
   "releaseDate": "01/09/2026",
-  "title": "Atualização Ecowave v1.9.0 - Diagramação Jurídica do Laudo",
+  "title": "Atualização Ecowave v2.0.0 - Módulo de Alto Consumo",
   "changelog": [
-    "Diagramação Jurídica: Quebra de página dinâmica inteligente para assinaturas e parecer",
-    "Assinatura do Cliente com discriminação legal e área 100% visível (sem cortes no rodapé)",
-    "Padronização oficial da marca para 'Ecowave'",
-    "Caixas dedicadas para Morador e Técnico com termos de acompanhamento e veracidade"
+    "Novo Módulo Especializado para Vistoria de Alto Consumo",
+    "1. Inspeção de Caixas Acopladas (Vasos Sanitários): Testes de ladrão, borracha de vedação, fotos e vídeos",
+    "2. Aferição do Hidrômetro em Balde Graduado (10L): Cálculo automático de desvio percentual e conformidade",
+    "3. Mapeamento de Vazão dos Pontos de Consumo em 10s: Cronômetro integrado e cálculo automático em L/min",
+    "Laudo em PDF com 3 tabelas técnicas executivas dedicadas a Alto Consumo e dupla assinatura"
   ]
 }

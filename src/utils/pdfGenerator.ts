@@ -51,7 +51,6 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   };
 
   // --- PÁGINA 1: CABEÇALHO E DADOS ---
-  // Faixa de Topo
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, width, 38, 'F');
   if (logoBase64 && logoBase64.includes('base64,')) {
@@ -66,11 +65,19 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   doc.setLineWidth(1.5);
   doc.line(0, 32, width, 32);
 
+  const isAltoConsumo = v.tipo_vistoria === 'Alto Consumo' || v.tipo_vistoria === 'alto_consumo';
+
   // Título e ID
   doc.setTextColor(...colorPurple);
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text('RELATÓRIO TÉCNICO DE VISTORIA GERAL', margin, 44);
+  doc.text(
+    isAltoConsumo 
+      ? 'RELATÓRIO TÉCNICO DE ALTO CONSUMO' 
+      : 'RELATÓRIO TÉCNICO DE VISTORIA GERAL', 
+    margin, 
+    44
+  );
   
   doc.setFontSize(9);
   doc.setTextColor(100);
@@ -89,12 +96,9 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     : (v.subtipo_vistoria.includes('AF') || v.subtipo_vistoria.includes('Água'));
 
   const isAQ = v.subtipo_vistoria ? v.subtipo_vistoria.includes('AQ') : false;
-
   const isGas = !v.subtipo_vistoria
     ? (v.tipo_vistoria === 'gas' || v.tipo_vistoria === 'agua_gas')
     : (v.subtipo_vistoria.includes('Gás') || v.subtipo_vistoria.includes('gas'));
-
-  const isWater = isAF || isAQ;
 
   const tipoExibicao = `${v.tipo_vistoria || ''}${v.subtipo_vistoria ? ` - ${v.subtipo_vistoria}` : ''}`.toUpperCase();
 
@@ -102,7 +106,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   doc.setTextColor(100);
   doc.setFont('helvetica', 'bold');
   doc.text('INFORMAÇÕES DO LOCAL', margin + 5, infoBoxY + 7);
-  doc.text(`TIPO: ${tipoExibicao}`, width - margin - 5, infoBoxY + 7, { align: 'right' });
+  doc.text(`MODALIDADE: ${tipoExibicao}`, width - margin - 5, infoBoxY + 7, { align: 'right' });
   
   doc.setTextColor(...colorDarkGray);
   doc.setFontSize(9.5);
@@ -114,96 +118,203 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   doc.text(`Técnico: ${v.tecnico || '-'}`, margin + 5, infoBoxY + 22);
   doc.text(`Responsável: ${v.responsavel_unidade || '-'}`, width - margin - 5, infoBoxY + 22, { align: 'right' });
 
-  // 2. Testes de Leitura (Tabela Moderna)
   let currentY = infoBoxY + infoBoxH + 8;
-  doc.setTextColor(...colorPurple);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ANÁLISE DE CONSUMO E LEITURAS', margin, currentY);
-  
-  const testesList = v.testes || [];
-  autoTable(doc, {
-    startY: currentY + 3,
-    margin: { left: margin, right: margin },
-    head: [['REFERÊNCIA', 'LEITURA INICIAL', 'LEITURA FINAL', 'DIFERENÇA (m³)', 'RECIPIENTE (L)']],
-    body: testesList.map((t, i) => [
-      `Teste #${i+1}`,
-      t.leitura_antes || '-',
-      t.leitura_depois || '-',
-      { content: (t.diferenca || 0).toFixed(3).replace('.', ','), styles: { fontStyle: 'bold', textColor: (t.diferenca || 0) < 0 ? [239, 68, 68] : [16, 185, 129] } },
-      t.litros_recipiente || '-'
-    ]),
-    theme: 'striped',
-    headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 8.5, halign: 'center', cellPadding: 2.5 },
-    bodyStyles: { fontSize: 8.5, halign: 'center', textColor: colorDarkGray, cellPadding: 2.5 },
-    columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } }
-  });
 
-  currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 8;
+  // Se for ALTO CONSUMO, renderiza o conjunto de 3 tabelas especializadas
+  if (isAltoConsumo) {
+    // TABELA 1: Inspeção de Caixas Acopladas (Vasos Sanitários)
+    if (v.caixas_acopladas && v.caixas_acopladas.length > 0) {
+      doc.setTextColor(...colorPurple);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('1. INSPEÇÃO PRELIMINAR DE CAIXAS ACOPLADAS (VASOS SANITÁRIOS)', margin, currentY);
 
-  // 3. Status Técnico
-  doc.setTextColor(...colorPurple);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('PARÂMETROS TÉCNICOS E STATUS', margin, currentY);
-  
+      const caixasRows = v.caixas_acopladas.map(c => {
+        let statusLabel = '✅ EM CONFORMIDADE (SEM VAZAMENTO)';
+        let statusColor: [number, number, number] = colorGreen;
+        let diag = 'Vedação inferior e nível do ladrão normais';
+
+        if (c.status === 'vazamento_ladrao') {
+          statusLabel = '❌ VAZAMENTO NO LADRÃO';
+          statusColor = [220, 38, 38];
+          diag = 'Nível de água acima do tubo extravasor (regulagem necessária)';
+        } else if (c.status === 'vazamento_borracha') {
+          statusLabel = '❌ VAZAMENTO NA VEDAÇÃO';
+          statusColor = [220, 38, 38];
+          diag = 'Borracha inferior desgastada (passagem contínua)';
+        } else if (c.status === 'vazamento_ambos') {
+          statusLabel = '❌ VAZAMENTO DUPLO (LADRÃO E VEDAÇÃO)';
+          statusColor = [220, 38, 38];
+          diag = 'Transbordamento no ladrão e falha na vedação';
+        } else if (c.status === 'nao_aplicavel') {
+          statusLabel = '⚪ NÃO APLICÁVEL';
+          statusColor = [100, 116, 139];
+          diag = 'Inexistente ou inacessível';
+        }
+
+        if (c.observacao) diag += ` • ${c.observacao}`;
+
+        return [
+          c.local,
+          { content: statusLabel, styles: { textColor: statusColor, fontStyle: 'bold' as const } },
+          diag
+        ];
+      });
+
+      autoTable(doc, {
+        startY: currentY + 3,
+        margin: { left: margin, right: margin },
+        head: [['LOCAL / AMBIENTE', 'STATUS DA VEDAÇÃO', 'DIAGNÓSTICO TÉCNICO']],
+        body: caixasRows,
+        theme: 'striped',
+        headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 8, cellPadding: 2 },
+        bodyStyles: { fontSize: 8, cellPadding: 2 }
+      });
+      currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 7;
+    }
+
+    // TABELA 2: Aferição de Precisão do Medidor (Balde 10L)
+    if (v.afericoes_medidores && v.afericoes_medidores.length > 0) {
+      doc.setTextColor(...colorPurple);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('2. AFERIÇÃO DE PRECISÃO DO HIDRÔMETRO (BALDE GRADUADO 10L)', margin, currentY);
+
+      const afericaoRows = v.afericoes_medidores.map(a => {
+        const isConforme = a.status === 'conforme';
+        const desvio = a.desvio_percentual || 0;
+        const colorResult: [number, number, number] = isConforme ? colorGreen : [220, 38, 38];
+        return [
+          `Hidrômetro ${a.tipo}`,
+          a.leitura_antes || '-',
+          a.leitura_depois || '-',
+          `${(a.litros_medidos_hidrometro || 0).toFixed(1)} L (${(a.diferenca_m3 || 0).toFixed(4)} m³)`,
+          `${(a.volume_balde_litros || 10).toFixed(1)} L`,
+          `${desvio > 0 ? '+' : ''}${desvio.toFixed(1)}%`,
+          { content: isConforme ? '✅ CONFORME' : '⚠️ DIVERGENTE', styles: { textColor: colorResult, fontStyle: 'bold' as const } }
+        ];
+      });
+
+      autoTable(doc, {
+        startY: currentY + 3,
+        margin: { left: margin, right: margin },
+        head: [['MEDIDOR', 'LEITURA ANTES', 'LEITURA DEPOIS', 'REGISTRADO', 'BALDE', 'DESVIO', 'RESULTADO']],
+        body: afericaoRows,
+        theme: 'striped',
+        headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 7.5, halign: 'center', cellPadding: 2 },
+        bodyStyles: { fontSize: 8, halign: 'center', cellPadding: 2 },
+        columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } }
+      });
+      currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 7;
+    }
+
+    // TABELA 3: Mapeamento de Vazão dos Pontos de Consumo (10 segundos)
+    if (v.pontos_consumo_itens && v.pontos_consumo_itens.length > 0) {
+      doc.setTextColor(...colorPurple);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('3. MAPEAMENTO DE VAZÃO DOS PONTOS DE CONSUMO (LITROS/MINUTO)', margin, currentY);
+
+      const pontosRows = v.pontos_consumo_itens.map(p => {
+        const vazao = p.vazao_l_min || 0;
+        let statusVazao = 'NORMAL';
+        let statusColor: [number, number, number] = colorDarkGray;
+        if (vazao > 12) {
+          statusVazao = 'ELEVADA (ALTO CONSUMO)';
+          statusColor = [220, 38, 38];
+        } else if (vazao > 0 && vazao <= 6) {
+          statusVazao = 'ECONÔMICA';
+          statusColor = colorGreen;
+        }
+        return [
+          p.local,
+          p.tipo,
+          p.litros_10s ? `${p.litros_10s} L` : '-',
+          `${vazao.toFixed(1)} L/min`,
+          { content: statusVazao, styles: { textColor: statusColor, fontStyle: 'bold' as const } }
+        ];
+      });
+
+      autoTable(doc, {
+        startY: currentY + 3,
+        margin: { left: margin, right: margin },
+        head: [['PONTO / AMBIENTE', 'TIPO', 'COLETA (10s)', 'VAZÃO PROJETADA (L/min)', 'CLASSIFICAÇÃO']],
+        body: pontosRows,
+        theme: 'striped',
+        headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 7.5, halign: 'center', cellPadding: 2 },
+        bodyStyles: { fontSize: 8, halign: 'center', cellPadding: 2 },
+        columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } }
+      });
+      currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 7;
+    }
+
+  } else {
+    // Modo Padrão / Geral
+    doc.setTextColor(...colorPurple);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ANÁLISE DE CONSUMO E LEITURAS', margin, currentY);
+    
+    const testesList = v.testes || [];
+    autoTable(doc, {
+      startY: currentY + 3,
+      margin: { left: margin, right: margin },
+      head: [['REFERÊNCIA', 'LEITURA INICIAL', 'LEITURA FINAL', 'DIFERENÇA (m³)', 'RECIPIENTE (L)']],
+      body: testesList.map((t, i) => [
+        `Teste #${i+1}`,
+        t.leitura_antes || '-',
+        t.leitura_depois || '-',
+        { content: (t.diferenca || 0).toFixed(3).replace('.', ','), styles: { fontStyle: 'bold', textColor: (t.diferenca || 0) < 0 ? [239, 68, 68] : [16, 185, 129] } },
+        t.litros_recipiente || '-'
+      ]),
+      theme: 'striped',
+      headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 8.5, halign: 'center', cellPadding: 2.5 },
+      bodyStyles: { fontSize: 8.5, halign: 'center', textColor: colorDarkGray, cellPadding: 2.5 },
+      columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } }
+    });
+
+    currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 8;
+  }
+
+  // Parâmetros Técnicos Gerais (se não for alto consumo ou para dados de medidor)
   const dg = v.dados_gerais || ({} as DadosGerais);
   const statusRows: any[] = [];
 
-  if (isAF) {
+  if (isAF && dg.serial_medidor_agua) {
     statusRows.push([
       { content: 'STATUS MEDIDOR AF', styles: { fontStyle: 'bold' as const, textColor: 100 } },
-      { content: dg.estado_medidor_agua?.toUpperCase() || '-', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
+      { content: dg.estado_medidor_agua?.toUpperCase() || 'BOM', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
       { content: 'Nº SÉRIE HIDRÔMETRO AF', styles: { fontStyle: 'bold' as const, textColor: 100 } },
       { content: dg.serial_medidor_agua || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const } }
     ]);
   }
 
-  if (isAQ) {
+  if (isAQ && dg.serial_medidor_aq) {
     statusRows.push([
       { content: 'STATUS MEDIDOR AQ', styles: { fontStyle: 'bold' as const, textColor: 100 } },
-      { content: dg.estado_medidor_aq?.toUpperCase() || '-', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
+      { content: dg.estado_medidor_aq?.toUpperCase() || 'BOM', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
       { content: 'Nº SÉRIE HIDRÔMETRO AQ', styles: { fontStyle: 'bold' as const, textColor: 100 } },
       { content: dg.serial_medidor_aq || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const } }
     ]);
   }
 
-  if (isGas) {
+  if (isGas && dg.serial_medidor_gas) {
     statusRows.push([
       { content: 'STATUS MEDIDOR GÁS', styles: { fontStyle: 'bold' as const, textColor: 100 } },
-      { content: dg.estado_medidor_gas?.toUpperCase() || '-', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
+      { content: dg.estado_medidor_gas?.toUpperCase() || 'BOM', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
       { content: 'Nº SÉRIE MEDIDOR GÁS', styles: { fontStyle: 'bold' as const, textColor: 100 } },
       { content: dg.serial_medidor_gas || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const } }
     ]);
   }
 
-  if (isWater) {
+  if (dg.relogio_parado_verificado) {
     statusRows.push([
       { content: 'ESTANQUEIDADE', styles: { fontStyle: 'bold' as const, textColor: 100 } },
-      { content: dg.relogio_parado_verificado ? 'CONFORMIDADE (PARADO)' : 'NÃO VERIFICADO', styles: { fontStyle: 'bold' as const, textColor: dg.relogio_parado_verificado ? colorGreen : [200, 0, 0] } },
+      { content: 'CONFORMIDADE (RELÓGIO PARADO)', styles: { fontStyle: 'bold' as const, textColor: colorGreen } },
       { content: '', styles: {} },
       { content: '', styles: {} }
     ]);
   }
-
-  if ((isAQ || isGas || dg.sistema_aquecimento) && dg.sistema_aquecimento) {
-    statusRows.push([
-      { content: 'SISTEMA AQUECIMENTO', styles: { fontStyle: 'bold' as const, textColor: 100 } },
-      { content: dg.tipo_aquecimento?.toUpperCase() || 'ATIVO', styles: { fontStyle: 'bold' as const } },
-      { content: '', styles: {} },
-      { content: '', styles: {} }
-    ]);
-  }
-
-  const extraRow: any[] = [];
-  if (dg.temperatura_agua_quente) extraRow.push({ content: 'TEMP. AQ', styles: { fontStyle: 'bold' as const, textColor: 100 } }, { content: `${dg.temperatura_agua_quente}°C`, styles: { fontStyle: 'bold' as const } });
-  if (dg.pressao_agua) extraRow.push({ content: 'PRESSÃO', styles: { fontStyle: 'bold' as const, textColor: 100 } }, { content: `${dg.pressao_agua} MCA`, styles: { fontStyle: 'bold' as const } });
-  
-  while (extraRow.length > 0 && extraRow.length < 4) {
-    extraRow.push({ content: '', styles: {} });
-  }
-  
-  if (extraRow.length > 0) statusRows.push(extraRow);
 
   if (statusRows.length > 0) {
     autoTable(doc, {
@@ -211,42 +322,17 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
       margin: { left: margin, right: margin },
       theme: 'plain',
       body: statusRows,
-      styles: { fontSize: 8.5, cellPadding: 2.5 },
+      styles: { fontSize: 8, cellPadding: 2 },
     });
-    currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 8;
-  }
-
-  // 3.5 Checklist de Verificações
-  if (isWater && dg.verificacoes_internas && dg.verificacoes_internas.length > 0) {
-    doc.setTextColor(...colorPurple);
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('VERIFICAÇÕES DE VAZAMENTOS INTERNOS', margin, currentY);
-    
-    autoTable(doc, {
-      startY: currentY + 3,
-      margin: { left: margin, right: margin },
-      head: [['ITEM INSPECIONADO', 'STATUS DA VERIFICAÇÃO', 'OBSERVAÇÃO']],
-      body: dg.verificacoes_internas.map(item => [
-        item.item,
-        { content: item.status === 'ok' ? '✅ EM CONFORMIDADE' : '❌ VAZAMENTO DETECTADO', styles: { textColor: item.status === 'ok' ? colorGreen : [200, 0, 0], fontStyle: 'bold' } },
-        item.status === 'ok' ? 'Nenhum vazamento visível' : 'Atenção: Necessário reparo'
-      ]),
-      theme: 'striped',
-      headStyles: { fillColor: [240, 240, 240], textColor: colorPurple, fontSize: 8, cellPadding: 2 },
-      bodyStyles: { fontSize: 8.5, cellPadding: 2 }
-    });
-    currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 8;
+    currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 7;
   }
 
   // 4. Verificação de Espaço para Parecer e Assinaturas
-  // Se o espaço restante na página não for suficiente para Parecer (~25mm) + Assinaturas (~50mm), cria nova página
   const neededSpace = 75;
   if (currentY + neededSpace > height - 20) {
     doc.addPage();
     currentY = 22;
     
-    // Banner de continuidade
     doc.setFillColor(...colorPurple);
     doc.rect(0, 0, width, 12, 'F');
     doc.setTextColor(255);
@@ -312,7 +398,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   }
 
   // Linha de Assinatura do Cliente
-  doc.setDrawColor(148, 163, 184); // Slate 400
+  doc.setDrawColor(148, 163, 184);
   doc.setLineWidth(0.5);
   doc.line(clientSigX + 6, currentY + 31, clientSigX + sigBoxW - 6, currentY + 31);
 
@@ -375,7 +461,6 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     if (imgCount % 2 === 0) {
       doc.addPage();
       
-      // Topo do anexo fotográfico
       doc.setFillColor(...colorPurple);
       doc.rect(0, 0, width, 14, 'F');
       doc.setTextColor(255);
@@ -414,24 +499,36 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     imgCount++;
   };
 
+  // Fotos de Caixas Acopladas
+  v.caixas_acopladas?.forEach(c => {
+    if (c.imagem) addImageToDoc(c.imagem, `Caixa Acoplada: ${c.local}`);
+  });
+
+  // Fotos de Aferições do Balde 10L
+  v.afericoes_medidores?.forEach(a => {
+    if (a.imagem_antes) addImageToDoc(a.imagem_antes, `Hidrômetro ${a.tipo} - Leitura Antes (Aferição 10L)`);
+    if (a.imagem_balde) addImageToDoc(a.imagem_balde, `Balde Graduado 10L - Hidrômetro ${a.tipo}`);
+    if (a.imagem_depois) addImageToDoc(a.imagem_depois, `Hidrômetro ${a.tipo} - Leitura Depois (Aferição 10L)`);
+  });
+
+  // Fotos de Pontos de Consumo
+  v.pontos_consumo_itens?.forEach(p => {
+    if (p.imagem) addImageToDoc(p.imagem, `Ponto de Consumo: ${p.local} (${p.tipo})`);
+  });
+
+  // Fotos de Testes Genéricos (se houver)
   (v.testes || []).forEach((t, i) => {
     if (t.imagens?.antes) addImageToDoc(t.imagens.antes, `Teste #${i+1} - Leitura Inicial`);
     if (t.imagens?.depois) addImageToDoc(t.imagens.depois, `Teste #${i+1} - Leitura Final`);
     if (t.imagens?.recipiente) addImageToDoc(t.imagens.recipiente, `Teste #${i+1} - Verificação Recipiente`);
   });
 
-  if (v.ponto_consumo?.imagem_recipiente) addImageToDoc(v.ponto_consumo.imagem_recipiente, 'Ponto de Consumo');
   if (dg.imagem_medidor_agua) addImageToDoc(dg.imagem_medidor_agua, 'Medidor AF (Água Fria)');
   if (dg.imagem_serial_agua) addImageToDoc(dg.imagem_serial_agua, 'Serial do Hidrômetro AF');
   if (dg.imagem_medidor_aq) addImageToDoc(dg.imagem_medidor_aq, 'Medidor AQ (Água Quente)');
   if (dg.imagem_serial_aq) addImageToDoc(dg.imagem_serial_aq, 'Serial do Hidrômetro AQ');
   if (dg.imagem_medidor_gas) addImageToDoc(dg.imagem_medidor_gas, 'Medidor de Gás');
   if (dg.imagem_serial_gas) addImageToDoc(dg.imagem_serial_gas, 'Serial Medidor Gás');
-  if (dg.imagem_aquecimento) addImageToDoc(dg.imagem_aquecimento, 'Sistema de Aquecimento');
-
-  dg.verificacoes_internas?.forEach(item => {
-    if (item.imagem) addImageToDoc(item.imagem, `Vazamento: ${item.item}`);
-  });
 
   const totalPages = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {

@@ -2,10 +2,18 @@ import { useState, useEffect } from 'react';
 import Header from './components/Header';
 import CameraInput from './components/CameraInput';
 import SignatureInput from './components/SignatureInput';
+import StopwatchTimer from './components/StopwatchTimer';
 import { db } from './db/database';
-import type { Vistoria, TesteLeitura } from './db/database';
+import type { 
+  Vistoria, 
+  TesteLeitura, 
+  CaixaAcopladaItem, 
+  AfericaoMedidorItem, 
+  PontoConsumoItem 
+} from './db/database';
 import { 
   Plus, 
+  Trash2,
   ChevronRight, 
   ChevronLeft, 
   FileText, 
@@ -13,11 +21,15 @@ import {
   MessageSquare, 
   ArrowLeft,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Droplets,
+  Gauge,
+  Video
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { generatePDF } from './utils/pdfGenerator';
 import { format } from 'date-fns';
+import logoImg from './assets/logo.png';
 
 export const TIPOS_VISTORIA = [
   'Alto Consumo',
@@ -67,14 +79,53 @@ export const isTipoAgua = (v: Partial<Vistoria>) => {
   return isTipoAF(v) || isTipoAQ(v);
 };
 
+const DEFAULT_CAIXAS_ACOPLADAS: CaixaAcopladaItem[] = [
+  { id: '1', local: 'W.C. Social', status: 'ok' },
+  { id: '2', local: 'Suíte 1', status: 'ok' },
+  { id: '3', local: 'Lavabo', status: 'ok' }
+];
+
+const DEFAULT_AFERICAO_AF: AfericaoMedidorItem = {
+  tipo: 'AF',
+  leitura_antes: '',
+  leitura_depois: '',
+  diferenca_m3: 0,
+  volume_balde_litros: 10,
+  litros_medidos_hidrometro: 0,
+  desvio_percentual: 0,
+  status: 'conforme'
+};
+
+const DEFAULT_AFERICAO_AQ: AfericaoMedidorItem = {
+  tipo: 'AQ',
+  leitura_antes: '',
+  leitura_depois: '',
+  diferenca_m3: 0,
+  volume_balde_litros: 10,
+  litros_medidos_hidrometro: 0,
+  desvio_percentual: 0,
+  status: 'conforme'
+};
+
+const DEFAULT_PONTOS_CONSUMO: PontoConsumoItem[] = [
+  { id: '1', tipo: 'AF', local: 'Torneira Tanque (Área de Serviço)', litros_10s: '', vazao_l_min: 0 },
+  { id: '2', tipo: 'AF', local: 'Torneira Cozinha', litros_10s: '', vazao_l_min: 0 },
+  { id: '3', tipo: 'AF', local: 'Torneira Lavabo', litros_10s: '', vazao_l_min: 0 },
+  { id: '4', tipo: 'AF', local: 'Torneira W.C. Social', litros_10s: '', vazao_l_min: 0 },
+  { id: '5', tipo: 'AF', local: 'Torneira Suíte', litros_10s: '', vazao_l_min: 0 }
+];
+
 const INITIAL_VISTORIA: Partial<Vistoria> = {
   data: format(new Date(), 'yyyy-MM-dd'),
   hora: format(new Date(), 'HH:mm'),
   tipo_vistoria: 'Alto Consumo',
   subtipo_vistoria: 'AF',
+  caixas_acopladas: DEFAULT_CAIXAS_ACOPLADAS,
+  afericoes_medidores: [DEFAULT_AFERICAO_AF],
+  pontos_consumo_itens: DEFAULT_PONTOS_CONSUMO,
   testes: [
-    { leitura_antes: '', leitura_depois: '', diferenca: 0, litros_recipiente: '', imagens: {} },
-    { leitura_antes: '', leitura_depois: '', diferenca: 0, litros_recipiente: '', imagens: {} }
+    { leitura_antes: '', leitura_depois: '', diferenca: 0, litros_recipiente: '10,0', imagens: {} },
+    { leitura_antes: '', leitura_depois: '', diferenca: 0, litros_recipiente: '10,0', imagens: {} }
   ],
   dados_gerais: { 
     sistema_aquecimento: false, 
@@ -83,8 +134,6 @@ const INITIAL_VISTORIA: Partial<Vistoria> = {
   },
   parecer_tecnico: ''
 };
-
-import logoImg from './assets/logo.png';
 
 export default function App() {
   const [step, setStep] = useState(0);
@@ -115,6 +164,99 @@ export default function App() {
     });
   };
 
+  // Funções para Vistoria de Alto Consumo:
+  const updateCaixaAcoplada = (index: number, field: string, value: any) => {
+    const list = [...(vistoria.caixas_acopladas || DEFAULT_CAIXAS_ACOPLADAS)];
+    list[index] = { ...list[index], [field]: value };
+    handleUpdate('caixas_acopladas', list);
+  };
+
+  const addCaixaAcoplada = () => {
+    const list = [...(vistoria.caixas_acopladas || DEFAULT_CAIXAS_ACOPLADAS)];
+    const count = list.length + 1;
+    list.push({
+      id: String(Date.now()),
+      local: `Suíte ${count - 1 > 1 ? count - 1 : 2}`,
+      status: 'ok'
+    });
+    handleUpdate('caixas_acopladas', list);
+  };
+
+  const removeCaixaAcoplada = (index: number) => {
+    const list = [...(vistoria.caixas_acopladas || DEFAULT_CAIXAS_ACOPLADAS)];
+    list.splice(index, 1);
+    handleUpdate('caixas_acopladas', list);
+  };
+
+  const updateAfericao = (tipo: 'AF' | 'AQ', field: string, value: any) => {
+    const list = [...(vistoria.afericoes_medidores || [DEFAULT_AFERICAO_AF])];
+    let itemIdx = list.findIndex(a => a.tipo === tipo);
+    if (itemIdx === -1) {
+      list.push(tipo === 'AF' ? { ...DEFAULT_AFERICAO_AF } : { ...DEFAULT_AFERICAO_AQ });
+      itemIdx = list.length - 1;
+    }
+    
+    const item = { ...list[itemIdx], [field]: value };
+
+    // Cálculo automático da aferição do hidrômetro
+    const antesStr = field === 'leitura_antes' ? value : item.leitura_antes;
+    const depoisStr = field === 'leitura_depois' ? value : item.leitura_depois;
+    const baldeVal = field === 'volume_balde_litros' ? parseFloat(value) : (item.volume_balde_litros || 10);
+
+    const antes = parseFloat(String(antesStr || '').replace(',', '.'));
+    const depois = parseFloat(String(depoisStr || '').replace(',', '.'));
+    const balde = !isNaN(baldeVal) && baldeVal > 0 ? baldeVal : 10;
+
+    if (!isNaN(antes) && !isNaN(depois)) {
+      const diffM3 = parseFloat((depois - antes).toFixed(4));
+      const litrosMedidos = parseFloat((diffM3 * 1000).toFixed(2));
+      const desvio = parseFloat((((litrosMedidos - balde) / balde) * 100).toFixed(1));
+      
+      item.diferenca_m3 = diffM3;
+      item.litros_medidos_hidrometro = litrosMedidos;
+      item.desvio_percentual = desvio;
+      item.status = Math.abs(desvio) <= 5 ? 'conforme' : 'divergente';
+    }
+
+    list[itemIdx] = item;
+    handleUpdate('afericoes_medidores', list);
+  };
+
+  const updatePontoConsumo = (index: number, field: string, value: any) => {
+    const list = [...(vistoria.pontos_consumo_itens || DEFAULT_PONTOS_CONSUMO)];
+    const item = { ...list[index], [field]: value };
+
+    if (field === 'litros_10s') {
+      const l10 = parseFloat(String(value).replace(',', '.'));
+      if (!isNaN(l10) && l10 >= 0) {
+        item.vazao_l_min = parseFloat((l10 * 6).toFixed(2));
+      } else {
+        item.vazao_l_min = 0;
+      }
+    }
+
+    list[index] = item;
+    handleUpdate('pontos_consumo_itens', list);
+  };
+
+  const addPontoConsumo = () => {
+    const list = [...(vistoria.pontos_consumo_itens || DEFAULT_PONTOS_CONSUMO)];
+    list.push({
+      id: String(Date.now()),
+      tipo: 'AF',
+      local: `Ponto de Consumo #${list.length + 1}`,
+      litros_10s: '',
+      vazao_l_min: 0
+    });
+    handleUpdate('pontos_consumo_itens', list);
+  };
+
+  const removePontoConsumo = (index: number) => {
+    const list = [...(vistoria.pontos_consumo_itens || DEFAULT_PONTOS_CONSUMO)];
+    list.splice(index, 1);
+    handleUpdate('pontos_consumo_itens', list);
+  };
+
   const updateTeste = (index: number, field: keyof TesteLeitura | string, value: any) => {
     const novosTestes = [...(vistoria.testes || [])];
     const teste = { ...novosTestes[index] };
@@ -126,7 +268,6 @@ export default function App() {
       (teste as any)[field] = value;
     }
 
-    // Lógica de cálculo automática
     if (field === 'leitura_antes' || field === 'leitura_depois') {
       const antes = parseFloat(teste.leitura_antes.replace(',', '.'));
       const depois = parseFloat(teste.leitura_depois.replace(',', '.'));
@@ -136,13 +277,7 @@ export default function App() {
     }
 
     novosTestes[index] = teste;
-
-    // Lógica de continuidade
-    if (index < novosTestes.length - 1 && field === 'leitura_depois') {
-      novosTestes[index + 1].leitura_antes = value;
-    }
-
-    setVistoria({ ...vistoria, testes: novosTestes });
+    handleUpdate('testes', novosTestes);
   };
 
   const addTeste = () => {
@@ -155,7 +290,7 @@ export default function App() {
           leitura_antes: ultimoTeste?.leitura_depois || '', 
           leitura_depois: '', 
           diferenca: 0, 
-          litros_recipiente: '', 
+          litros_recipiente: '10,0', 
           imagens: {} 
         }
       ]
@@ -169,7 +304,6 @@ export default function App() {
         createdAt: Date.now()
       } as Vistoria;
       
-      // Usamos .put para evitar erros de duplicidade
       const id = await db.vistorias.put(dataToSave);
       alert('Vistoria salva localmente com sucesso!');
       setVistoria({ ...INITIAL_VISTORIA, id });
@@ -177,7 +311,6 @@ export default function App() {
       loadHistory();
     } catch (err: any) {
       console.error('Erro detalhado ao salvar:', err);
-      // Exibe o erro real para sabermos se é falta de espaço ou outro problema
       alert(`Erro ao salvar vistoria: ${err.message || 'Erro desconhecido'}`);
     }
   };
@@ -185,10 +318,9 @@ export default function App() {
   const syncToCloud = async (fileName: string, base64: string, mimeType: string) => {
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx65pLFtsRfnbdhtkX_oLYtt3HGEgM41zUo7c-k3Fs25RCKcn2qgeoT28FsXAdn8nOf/exec';
     try {
-      // Usamos fetch para enviar os dados para o seu script recepcionista
       await fetch(SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors', // Necessário para Google Apps Script
+        mode: 'no-cors',
         body: JSON.stringify({
           fileName,
           base64: base64.includes(',') ? base64.split(',')[1] : base64,
@@ -207,7 +339,6 @@ export default function App() {
       const { Filesystem, Directory } = await import('@capacitor/filesystem');
       const { Share } = await import('@capacitor/share');
 
-      // 1. Gerar e Salvar PDF
       const base64Data = await generatePDF(v, logoImg);
       const safeCondoName = (v.condominio || 'Vistoria').replace(/[^a-z0-9]/gi, '_').toLowerCase();
       const pdfFileName = `Relatorio_${safeCondoName}_${v.unidade || 'Unidade'}.pdf`;
@@ -224,17 +355,10 @@ export default function App() {
         console.warn('Erro ao gravar no Directory.Cache:', fsErr);
       }
 
-      // Inicia backup do PDF em background
       try {
         syncToCloud(pdfFileName, base64Data, 'application/pdf');
       } catch (e) {}
 
-      // Backup dos vídeos de prova em background (se existirem)
-      if (v.dados_gerais?.video_relogio_parado) {
-        syncToCloud(`Video_Estanqueidade_${v.unidade || 'Unidade'}.mp4`, v.dados_gerais.video_relogio_parado, 'video/mp4');
-      }
-
-      // 2. Compartilhar via Share nativo do Android
       if (pdfFileUri) {
         try {
           await Share.share({
@@ -252,7 +376,6 @@ export default function App() {
         }
       }
 
-      // Fallback: Download direto do PDF no navegador / WebView
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
@@ -283,6 +406,8 @@ export default function App() {
     window.open(url, '_blank');
   };
 
+  const isAltoConsumo = vistoria.tipo_vistoria === 'Alto Consumo';
+
   if (showHistory) {
     return (
       <div className="fade-in">
@@ -291,7 +416,7 @@ export default function App() {
           <button onClick={() => setShowHistory(false)} className="secondary" style={{ width: 'auto' }}>
             <ArrowLeft size={18} />
           </button>
-          <h2 style={{ margin: 0 }}>Histórico</h2>
+          <h2 style={{ margin: 0 }}>Histórico de Vistorias</h2>
         </div>
         
         {vistoriasSalvas.length === 0 ? (
@@ -347,10 +472,11 @@ export default function App() {
     <div className="fade-in">
       <Header />
       
+      {/* PASSO 0: DADOS INICIAIS */}
       {step === 0 && (
         <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
           <div className="card">
-            <h2>Dados Iniciais</h2>
+            <h2>Dados Iniciais da Vistoria</h2>
             <div className="grid-2">
               <div className="form-group">
                 <label>Data (Automática)</label>
@@ -380,8 +506,8 @@ export default function App() {
               <input type="text" placeholder="Nome do Técnico" value={vistoria.tecnico} onChange={e => handleUpdate('tecnico', e.target.value)} />
             </div>
             <div className="form-group">
-              <label>Responsável Unidade</label>
-              <input type="text" placeholder="Nome do Morador/Responsável" value={vistoria.responsavel_unidade} onChange={e => handleUpdate('responsavel_unidade', e.target.value)} />
+              <label>Responsável / Morador da Unidade</label>
+              <input type="text" placeholder="Nome do Morador que Acompanhou" value={vistoria.responsavel_unidade} onChange={e => handleUpdate('responsavel_unidade', e.target.value)} />
             </div>
             
             {vistoria.tipo_vistoria === 'Troca de Equipamento' ? (
@@ -450,7 +576,7 @@ export default function App() {
                       setVistoria(prev => ({
                         ...prev,
                         tipo_vistoria: novoTipo,
-                        subtipo_vistoria: novoTipo === 'Troca de Equipamento' ? 'Troca de Medidor - AF' : 'AF'
+                        subtipo_vistoria: 'AF'
                       }));
                     }}
                   >
@@ -461,7 +587,7 @@ export default function App() {
                 </div>
 
                 <div className="form-group">
-                  <label>Sistema (Sub-seleção)</label>
+                  <label>Utilidades / Sistemas</label>
                   <select 
                     value={vistoria.subtipo_vistoria || 'AF'} 
                     onChange={e => handleUpdate('subtipo_vistoria', e.target.value)}
@@ -475,7 +601,6 @@ export default function App() {
             )}
 
             <button onClick={() => {
-              // Atualiza data/hora no momento exato do início
               handleUpdate('data', format(new Date(), 'yyyy-MM-dd'));
               handleUpdate('hora', format(new Date(), 'HH:mm'));
               setStep(1);
@@ -489,186 +614,621 @@ export default function App() {
         </motion.div>
       )}
 
+      {/* PASSO 1: INSPEÇÃO DE CAIXAS ACOPLADAS (ALTO CONSUMO) OU TESTES LEITURA (GERAL) */}
       {step === 1 && (
         <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
-          <div className="card">
-            <h2>Testes de Leitura</h2>
-            <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '0.5rem', marginBottom: '1.5rem' }}>
-              {vistoria.testes?.map((teste, idx) => (
-                <div key={idx} style={{ 
-                  borderBottom: idx < (vistoria.testes?.length || 0) - 1 ? '1px solid var(--border)' : 'none',
-                  paddingBottom: '1.5rem',
-                  marginBottom: '1.5rem'
-                }}>
-                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)' }}>
-                    <CheckCircle2 size={18} /> Teste #{idx + 1}
-                  </h3>
-                  
-                  <div className="grid-2">
-                    <div className="form-group">
-                      <label>Leitura Antes</label>
-                      <input 
-                        type="text" 
-                        inputMode="decimal"
-                        disabled={idx > 0} 
-                        placeholder="0000,000"
-                        value={teste.leitura_antes} 
-                        onChange={e => updateTeste(idx, 'leitura_antes', e.target.value)} 
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Leitura Depois</label>
-                      <input 
-                        type="text" 
-                        inputMode="decimal"
-                        placeholder="0000,000"
-                        value={teste.leitura_depois} 
-                        onChange={e => updateTeste(idx, 'leitura_depois', e.target.value)} 
-                      />
-                    </div>
-                  </div>
+          {isAltoConsumo ? (
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '1.5rem' }}>🚽</span>
+                <h2 style={{ margin: 0 }}>1. Inspeção de Caixas Acopladas</h2>
+              </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                Retire a tampa da caixa acoplada e inspecione se há vazamento pelo tubo extravasor (ladrão) ou pela borracha de vedação inferior.
+              </p>
 
-                  <div className="grid-2" style={{ marginBottom: '1rem' }}>
-                    <div style={{ backgroundColor: 'var(--background)', padding: '0.75rem', borderRadius: '8px' }}>
-                      <label style={{ margin: 0 }}>Diferença</label>
-                      <div style={{ 
-                        fontSize: '1.25rem', 
-                        fontWeight: 'bold', 
-                        color: teste.diferenca < 0 ? 'var(--error)' : 'var(--success)' 
-                      }}>
-                        {teste.diferenca.toFixed(3).replace('.', ',')}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                {(vistoria.caixas_acopladas || DEFAULT_CAIXAS_ACOPLADAS).map((caixa, idx) => (
+                  <div key={caixa.id || idx} style={{
+                    backgroundColor: 'var(--background)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '12px',
+                    padding: '1rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <input 
+                        type="text"
+                        value={caixa.local}
+                        onChange={e => updateCaixaAcoplada(idx, 'local', e.target.value)}
+                        style={{ fontWeight: 'bold', fontSize: '1rem', width: 'auto', marginBottom: 0, padding: '4px 8px' }}
+                      />
+                      {(vistoria.caixas_acopladas?.length || 0) > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeCaixaAcoplada(idx)}
+                          className="secondary"
+                          style={{ padding: '4px 8px', width: 'auto', margin: 0, color: 'var(--error)' }}
+                          title="Remover Caixa"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                      Status da Vedação e Nível do Ladrão:
+                    </label>
+                    <select
+                      value={caixa.status}
+                      onChange={e => updateCaixaAcoplada(idx, 'status', e.target.value)}
+                      style={{ 
+                        fontWeight: '600',
+                        borderColor: caixa.status === 'ok' ? 'var(--success)' : caixa.status === 'nao_aplicavel' ? 'var(--border)' : 'var(--error)',
+                        color: caixa.status === 'ok' ? 'var(--success)' : caixa.status === 'nao_aplicavel' ? 'var(--text)' : 'var(--error)'
+                      }}
+                    >
+                      <option value="ok">🟢 Em Conformidade (Sem Vazamento)</option>
+                      <option value="vazamento_ladrao">🔴 Vazamento pelo Ladrão (Nível Alto)</option>
+                      <option value="vazamento_borracha">🔴 Vazamento pela Borracha Inferior</option>
+                      <option value="vazamento_ambos">🔴 Vazamento Duplo (Ladrão e Borracha)</option>
+                      <option value="nao_aplicavel">⚪ Não Aplicável / Inexistente</option>
+                    </select>
+
+                    {caixa.status !== 'ok' && caixa.status !== 'nao_aplicavel' && (
+                      <div className="fade-in" style={{ marginTop: '0.75rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                          <CameraInput 
+                            label="Foto da Caixa Acoplada" 
+                            onPhotoTaken={(b64) => updateCaixaAcoplada(idx, 'imagem', b64)} 
+                            initialValue={caixa.imagem}
+                          />
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: '600' }}>
+                              <Video size={14} color="var(--primary)" />
+                              <span>Vídeo de Prova (10s)</span>
+                            </label>
+                            <input 
+                              type="file" 
+                              accept="video/*" 
+                              capture="environment"
+                              style={{ padding: '8px', fontSize: '0.75rem', height: 'auto', backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    updateCaixaAcoplada(idx, 'video', reader.result as string);
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                            {caixa.video && (
+                              <div style={{ color: 'var(--success)', fontSize: '0.75rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <CheckCircle2 size={12} /> Vídeo Anexado
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label>Observação Técnica</label>
+                          <input 
+                            type="text" 
+                            placeholder="Ex: Regulagem da bóia necessária ou troca do obturador"
+                            value={caixa.observacao || ''}
+                            onChange={e => updateCaixaAcoplada(idx, 'observacao', e.target.value)}
+                            style={{ marginBottom: 0 }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={addCaixaAcoplada}
+                  className="secondary outline"
+                  style={{ borderStyle: 'dashed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                >
+                  <Plus size={16} /> Adicionar Outro Vaso Sanitário / Suíte
+                </button>
+              </div>
+
+              <div className="grid-2">
+                <button onClick={() => setStep(0)} className="secondary"><ChevronLeft size={18} /> Voltar</button>
+                <button onClick={() => setStep(2)}>Avançar para Aferição <ChevronRight size={18} /></button>
+              </div>
+            </div>
+          ) : (
+            /* Modo Geral */
+            <div className="card">
+              <h2>Testes de Leitura</h2>
+              <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '0.5rem', marginBottom: '1.5rem' }}>
+                {vistoria.testes?.map((teste, idx) => (
+                  <div key={idx} style={{ 
+                    borderBottom: idx < (vistoria.testes?.length || 0) - 1 ? '1px solid var(--border)' : 'none',
+                    paddingBottom: '1.5rem',
+                    marginBottom: '1.5rem'
+                  }}>
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)' }}>
+                      <CheckCircle2 size={18} /> Teste #{idx + 1}
+                    </h3>
+                    
+                    <div className="grid-2">
+                      <div className="form-group">
+                        <label>Leitura Antes</label>
+                        <input 
+                          type="text" 
+                          inputMode="decimal"
+                          disabled={idx > 0} 
+                          placeholder="0000,000"
+                          value={teste.leitura_antes} 
+                          onChange={e => updateTeste(idx, 'leitura_antes', e.target.value)} 
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Leitura Depois</label>
+                        <input 
+                          type="text" 
+                          inputMode="decimal"
+                          placeholder="0000,000"
+                          value={teste.leitura_depois} 
+                          onChange={e => updateTeste(idx, 'leitura_depois', e.target.value)} 
+                        />
                       </div>
                     </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label>Litros Recipiente</label>
-                      <input 
-                        type="text" 
-                        inputMode="decimal"
-                        placeholder="Ex: 5,0"
-                        value={teste.litros_recipiente} 
-                        onChange={e => updateTeste(idx, 'litros_recipiente', e.target.value)} 
-                        style={{ marginBottom: 0 }}
-                      />
+
+                    <div className="grid-2" style={{ marginBottom: '1rem' }}>
+                      <div style={{ backgroundColor: 'var(--background)', padding: '0.75rem', borderRadius: '8px' }}>
+                        <label style={{ margin: 0 }}>Diferença</label>
+                        <div style={{ 
+                          fontSize: '1.25rem', 
+                          fontWeight: 'bold', 
+                          color: teste.diferenca < 0 ? 'var(--error)' : 'var(--success)' 
+                        }}>
+                          {teste.diferenca.toFixed(3).replace('.', ',')}
+                        </div>
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label>Litros Recipiente</label>
+                        <input 
+                          type="text" 
+                          inputMode="decimal"
+                          placeholder="Ex: 10,0"
+                          value={teste.litros_recipiente} 
+                          onChange={e => updateTeste(idx, 'litros_recipiente', e.target.value)} 
+                          style={{ marginBottom: 0 }}
+                        />
+                      </div>
                     </div>
-                  </div>
 
-                  {teste.diferenca < 0 && (
-                    <div style={{ color: 'var(--error)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '1rem' }}>
-                      <AlertTriangle size={14} /> Erro: Leitura final menor que a inicial.
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <CameraInput label="Foto Antes" onPhotoTaken={(b64) => updateTeste(idx, 'imagens.antes', b64)} initialValue={teste.imagens.antes} />
+                      <CameraInput label="Foto Depois" onPhotoTaken={(b64) => updateTeste(idx, 'imagens.depois', b64)} initialValue={teste.imagens.depois} />
                     </div>
-                  )}
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <CameraInput label="Foto Antes" onPhotoTaken={(b64) => updateTeste(idx, 'imagens.antes', b64)} initialValue={teste.imagens.antes} />
-                    <CameraInput label="Foto Depois" onPhotoTaken={(b64) => updateTeste(idx, 'imagens.depois', b64)} initialValue={teste.imagens.depois} />
+                    <CameraInput label="Foto Recipiente" onPhotoTaken={(b64) => updateTeste(idx, 'imagens.recipiente', b64)} initialValue={teste.imagens.recipiente} />
                   </div>
-                  <CameraInput label="Foto Recipiente" onPhotoTaken={(b64) => updateTeste(idx, 'imagens.recipiente', b64)} initialValue={teste.imagens.recipiente} />
-                </div>
-              ))}
-              
-              <button onClick={addTeste} className="secondary outline" style={{ borderStyle: 'dashed' }}>
-                <Plus size={18} /> Adicionar Mais Testes
-              </button>
-            </div>
+                ))}
+                
+                <button onClick={addTeste} className="secondary outline" style={{ borderStyle: 'dashed' }}>
+                  <Plus size={18} /> Adicionar Mais Testes
+                </button>
+              </div>
 
-            <div className="grid-2">
-              <button onClick={() => setStep(0)} className="secondary"><ChevronLeft size={18} /> Voltar</button>
-              <button onClick={() => setStep(vistoria.tipo_vistoria === 'ponto_consumo' ? 2 : 3)}>Avançar <ChevronRight size={18} /></button>
+              <div className="grid-2">
+                <button onClick={() => setStep(0)} className="secondary"><ChevronLeft size={18} /> Voltar</button>
+                <button onClick={() => setStep(2)}>Avançar <ChevronRight size={18} /></button>
+              </div>
             </div>
-          </div>
+          )}
         </motion.div>
       )}
 
+      {/* PASSO 2: AFERIÇÃO DO HIDRÔMETRO (BALDE 10L) */}
       {step === 2 && (
         <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
-          <div className="card">
-            <h2>Ponto de Consumo</h2>
-            <div className="form-group">
-              <label>Nome do Ponto</label>
-              <input 
-                type="text" 
-                placeholder="Ex: Chuveiro Suíte" 
-                value={vistoria.ponto_consumo?.nome_ponto} 
-                onChange={e => handleUpdate('ponto_consumo.nome_ponto', e.target.value)} 
-              />
-            </div>
-            <div className="grid-2">
-              <div className="form-group">
-                <label>Tempo (Segundos)</label>
-                <input 
-                  type="number" 
-                  inputMode="numeric"
-                  value={vistoria.ponto_consumo?.tempo_segundos} 
-                  onChange={e => {
-                    const val = e.target.value;
-                    const litros = parseFloat(vistoria.ponto_consumo?.litros_medidos || '0');
-                    const segs = parseFloat(val);
-                    const calc = segs > 0 ? (litros / segs) * 60 : 0;
-                    handleUpdate('ponto_consumo', { ...vistoria.ponto_consumo, tempo_segundos: val, resultado_calculado: parseFloat(calc.toFixed(2)) });
-                  }} 
-                />
+          {isAltoConsumo ? (
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '1.5rem' }}>🪣</span>
+                <h2 style={{ margin: 0 }}>2. Aferição do Medidor (Balde 10L)</h2>
               </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                Verificação de precisão volumétrica: colete 10 litros em balde graduado e compare com o hidrômetro.
+              </p>
+
+              {/* Bloco AF */}
+              {isTipoAF(vistoria) && (() => {
+                const afericaoAF = vistoria.afericoes_medidores?.find(a => a.tipo === 'AF') || DEFAULT_AFERICAO_AF;
+                return (
+                  <div style={{
+                    backgroundColor: 'var(--background)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '12px',
+                    padding: '1.25rem',
+                    marginBottom: '1.5rem'
+                  }}>
+                    <h3 style={{ margin: '0 0 1rem 0', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '1.1rem' }}>
+                      <Droplets size={18} /> Aferição do Hidrômetro AF (Água Fria)
+                    </h3>
+
+                    {/* 1. Foto Antes + Leitura Inicial */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
+                      <CameraInput 
+                        label="1. Foto Medidor Antes" 
+                        onPhotoTaken={(b) => updateAfericao('AF', 'imagem_antes', b)} 
+                        initialValue={afericaoAF.imagem_antes}
+                      />
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontWeight: 'bold' }}>Leitura Inicial (m³)</label>
+                        <input 
+                          type="text" 
+                          inputMode="decimal"
+                          placeholder="0000,000"
+                          value={afericaoAF.leitura_antes}
+                          onChange={e => updateAfericao('AF', 'leitura_antes', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 2. Coleta 10L + Foto Balde */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
+                      <CameraInput 
+                        label="2. Foto Balde (10L)" 
+                        onPhotoTaken={(b) => updateAfericao('AF', 'imagem_balde', b)} 
+                        initialValue={afericaoAF.imagem_balde}
+                      />
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontWeight: 'bold' }}>Volume Balde (Litros)</label>
+                        <input 
+                          type="number" 
+                          inputMode="decimal"
+                          value={afericaoAF.volume_balde_litros || 10}
+                          onChange={e => updateAfericao('AF', 'volume_balde_litros', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 3. Foto Depois + Leitura Final */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
+                      <CameraInput 
+                        label="3. Foto Medidor Depois" 
+                        onPhotoTaken={(b) => updateAfericao('AF', 'imagem_depois', b)} 
+                        initialValue={afericaoAF.imagem_depois}
+                      />
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontWeight: 'bold' }}>Leitura Final (m³)</label>
+                        <input 
+                          type="text" 
+                          inputMode="decimal"
+                          placeholder="0000,010"
+                          value={afericaoAF.leitura_depois}
+                          onChange={e => updateAfericao('AF', 'leitura_depois', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Painel de Cálculo e Conformidade */}
+                    <div style={{
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                      padding: '1rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.5rem'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span>Diferença no Medidor:</span>
+                        <strong>{(afericaoAF.diferenca_m3 || 0).toFixed(4).replace('.', ',')} m³ ({(afericaoAF.litros_medidos_hidrometro || 0).toFixed(1)} L)</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span>Desvio Calculado:</span>
+                        <strong style={{ color: afericaoAF.status === 'conforme' ? 'var(--success)' : 'var(--error)' }}>
+                          {(afericaoAF.desvio_percentual || 0) > 0 ? '+' : ''}{(afericaoAF.desvio_percentual || 0).toFixed(1)}%
+                        </strong>
+                      </div>
+
+                      <div style={{
+                        marginTop: '0.5rem',
+                        padding: '0.6rem',
+                        borderRadius: '8px',
+                        backgroundColor: afericaoAF.status === 'conforme' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        color: afericaoAF.status === 'conforme' ? 'var(--success)' : 'var(--error)',
+                        fontWeight: 'bold',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        {afericaoAF.status === 'conforme' ? (
+                          <>
+                            <CheckCircle2 size={16} />
+                            <span>Hidrômetro Aferido (Leitura Conforme)</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle size={16} />
+                            <span>Divergência de Leitura Detectada</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Bloco AQ (se aplicável) */}
+              {isTipoAQ(vistoria) && (() => {
+                const afericaoAQ = vistoria.afericoes_medidores?.find(a => a.tipo === 'AQ') || DEFAULT_AFERICAO_AQ;
+                return (
+                  <div style={{
+                    backgroundColor: 'var(--background)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '12px',
+                    padding: '1.25rem',
+                    marginBottom: '1.5rem'
+                  }}>
+                    <h3 style={{ margin: '0 0 1rem 0', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '1.1rem' }}>
+                      <Gauge size={18} /> Aferição do Hidrômetro AQ (Água Quente)
+                    </h3>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
+                      <CameraInput 
+                        label="1. Foto Medidor AQ Antes" 
+                        onPhotoTaken={(b) => updateAfericao('AQ', 'imagem_antes', b)} 
+                        initialValue={afericaoAQ.imagem_antes}
+                      />
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontWeight: 'bold' }}>Leitura Inicial AQ (m³)</label>
+                        <input 
+                          type="text" 
+                          inputMode="decimal"
+                          placeholder="0000,000"
+                          value={afericaoAQ.leitura_antes}
+                          onChange={e => updateAfericao('AQ', 'leitura_antes', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
+                      <CameraInput 
+                        label="2. Foto Balde AQ (10L)" 
+                        onPhotoTaken={(b) => updateAfericao('AQ', 'imagem_balde', b)} 
+                        initialValue={afericaoAQ.imagem_balde}
+                      />
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontWeight: 'bold' }}>Volume Balde (Litros)</label>
+                        <input 
+                          type="number" 
+                          inputMode="decimal"
+                          value={afericaoAQ.volume_balde_litros || 10}
+                          onChange={e => updateAfericao('AQ', 'volume_balde_litros', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
+                      <CameraInput 
+                        label="3. Foto Medidor AQ Depois" 
+                        onPhotoTaken={(b) => updateAfericao('AQ', 'imagem_depois', b)} 
+                        initialValue={afericaoAQ.imagem_depois}
+                      />
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontWeight: 'bold' }}>Leitura Final AQ (m³)</label>
+                        <input 
+                          type="text" 
+                          inputMode="decimal"
+                          placeholder="0000,010"
+                          value={afericaoAQ.leitura_depois}
+                          onChange={e => updateAfericao('AQ', 'leitura_depois', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                      padding: '1rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.5rem'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span>Diferença Medidor AQ:</span>
+                        <strong>{(afericaoAQ.diferenca_m3 || 0).toFixed(4).replace('.', ',')} m³ ({(afericaoAQ.litros_medidos_hidrometro || 0).toFixed(1)} L)</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span>Desvio Calculado AQ:</span>
+                        <strong style={{ color: afericaoAQ.status === 'conforme' ? 'var(--success)' : 'var(--error)' }}>
+                          {(afericaoAQ.desvio_percentual || 0) > 0 ? '+' : ''}{(afericaoAQ.desvio_percentual || 0).toFixed(1)}%
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="grid-2">
+                <button onClick={() => setStep(1)} className="secondary"><ChevronLeft size={18} /> Voltar</button>
+                <button onClick={() => setStep(3)}>Avançar para Pontos <ChevronRight size={18} /></button>
+              </div>
+            </div>
+          ) : (
+            <div className="card">
+              <h2>Ponto de Consumo</h2>
               <div className="form-group">
-                <label>Litros Medidos</label>
+                <label>Nome do Ponto</label>
                 <input 
                   type="text" 
-                  inputMode="decimal"
-                  value={vistoria.ponto_consumo?.litros_medidos} 
-                  onChange={e => {
-                    const val = e.target.value.replace(',', '.');
-                    const segs = parseFloat(vistoria.ponto_consumo?.tempo_segundos || '0');
-                    const litros = parseFloat(val);
-                    const calc = segs > 0 ? (litros / segs) * 60 : 0;
-                    handleUpdate('ponto_consumo', { ...vistoria.ponto_consumo, litros_medidos: val, resultado_calculado: parseFloat(calc.toFixed(2)) });
-                  }} 
+                  placeholder="Ex: Chuveiro Suíte" 
+                  value={vistoria.ponto_consumo?.nome_ponto} 
+                  onChange={e => handleUpdate('ponto_consumo.nome_ponto', e.target.value)} 
                 />
               </div>
-            </div>
+              <div className="grid-2">
+                <div className="form-group">
+                  <label>Tempo (Segundos)</label>
+                  <input 
+                    type="number" 
+                    value={vistoria.ponto_consumo?.tempo_segundos} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      const litros = parseFloat(vistoria.ponto_consumo?.litros_medidos || '0');
+                      const segs = parseFloat(val);
+                      const calc = segs > 0 ? (litros / segs) * 60 : 0;
+                      handleUpdate('ponto_consumo', { ...vistoria.ponto_consumo, tempo_segundos: val, resultado_calculado: parseFloat(calc.toFixed(2)) });
+                    }} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Litros Medidos</label>
+                  <input 
+                    type="text" 
+                    value={vistoria.ponto_consumo?.litros_medidos} 
+                    onChange={e => {
+                      const val = e.target.value.replace(',', '.');
+                      const segs = parseFloat(vistoria.ponto_consumo?.tempo_segundos || '0');
+                      const litros = parseFloat(val);
+                      const calc = segs > 0 ? (litros / segs) * 60 : 0;
+                      handleUpdate('ponto_consumo', { ...vistoria.ponto_consumo, litros_medidos: val, resultado_calculado: parseFloat(calc.toFixed(2)) });
+                    }} 
+                  />
+                </div>
+              </div>
 
-            <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', textAlign: 'center' }}>
-              <label>Consumo Estimado</label>
-              <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--primary)' }}>
-                {vistoria.ponto_consumo?.resultado_calculado || 0} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>L/min</span>
+              <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', textAlign: 'center' }}>
+                <label>Consumo Estimado</label>
+                <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--primary)' }}>
+                  {vistoria.ponto_consumo?.resultado_calculado || 0} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>L/min</span>
+                </div>
+              </div>
+
+              <CameraInput 
+                label="Foto do Recipiente / Ponto" 
+                onPhotoTaken={(b) => handleUpdate('ponto_consumo.imagem_recipiente', b)} 
+                initialValue={vistoria.ponto_consumo?.imagem_recipiente}
+              />
+
+              <div className="grid-2">
+                <button onClick={() => setStep(1)} className="secondary"><ChevronLeft size={18} /> Voltar</button>
+                <button onClick={() => setStep(3)}>Avançar <ChevronRight size={18} /></button>
               </div>
             </div>
-
-            <CameraInput 
-              label="Foto do Recipiente / Ponto" 
-              onPhotoTaken={(b) => handleUpdate('ponto_consumo.imagem_recipiente', b)} 
-              initialValue={vistoria.ponto_consumo?.imagem_recipiente}
-            />
-
-            <div className="form-group">
-              <label>Marca Ducha/Torneira (Opcional)</label>
-              <input 
-                type="text" 
-                placeholder="Ex: Deca / Lorenzetti" 
-                value={vistoria.ponto_consumo?.marca_ducha_ou_torneira} 
-                onChange={e => handleUpdate('ponto_consumo.marca_ducha_ou_torneira', e.target.value)} 
-              />
-            </div>
-
-            <div className="grid-2">
-              <button onClick={() => setStep(1)} className="secondary"><ChevronLeft size={18} /> Voltar</button>
-              <button onClick={() => setStep(3)}>Avançar <ChevronRight size={18} /></button>
-            </div>
-          </div>
+          )}
         </motion.div>
       )}
 
+      {/* PASSO 3: MAPEAMENTO DE VAZÃO DOS PONTOS DE CONSUMO (10s) */}
       {step === 3 && (
         <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
-          <div className="card">
-            <h2>Verificações Internas (Checklist)</h2>
-            
-            {isTipoAgua(vistoria) ? (
+          {isAltoConsumo ? (
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '1.5rem' }}>🚰</span>
+                <h2 style={{ margin: 0 }}>3. Vazão dos Pontos de Consumo</h2>
+              </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                Abra a torneira e colete a água durante <strong>10 segundos</strong>. O aplicativo multiplicará automaticamente por 6 para obter a vazão por minuto (L/min).
+              </p>
+
+              {/* Cronômetro Regressivo de 10 segundos */}
+              <StopwatchTimer initialSeconds={10} />
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                {(vistoria.pontos_consumo_itens || DEFAULT_PONTOS_CONSUMO).map((ponto, idx) => (
+                  <div key={ponto.id || idx} style={{
+                    backgroundColor: 'var(--background)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '12px',
+                    padding: '1rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <input 
+                        type="text"
+                        value={ponto.local}
+                        onChange={e => updatePontoConsumo(idx, 'local', e.target.value)}
+                        style={{ fontWeight: 'bold', fontSize: '0.95rem', width: 'auto', marginBottom: 0, padding: '4px 8px' }}
+                      />
+                      {(vistoria.pontos_consumo_itens?.length || 0) > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePontoConsumo(idx)}
+                          className="secondary"
+                          style={{ padding: '4px 8px', width: 'auto', margin: 0, color: 'var(--error)' }}
+                          title="Remover Ponto"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid-2" style={{ alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Coleta em 10s (Litros)</label>
+                        <input 
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="Ex: 1,0"
+                          value={ponto.litros_10s}
+                          onChange={e => updatePontoConsumo(idx, 'litros_10s', e.target.value)}
+                          style={{ marginBottom: 0 }}
+                        />
+                      </div>
+
+                      <div style={{
+                        backgroundColor: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        padding: '0.6rem 0.8rem',
+                        borderRadius: '8px',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                          Vazão Projetada
+                        </div>
+                        <div style={{ 
+                          fontSize: '1.2rem', 
+                          fontWeight: 'bold', 
+                          color: (ponto.vazao_l_min || 0) > 12 ? 'var(--error)' : 'var(--primary)' 
+                        }}>
+                          {(ponto.vazao_l_min || 0).toFixed(1).replace('.', ',')} <span style={{ fontSize: '0.75rem', fontWeight: 'normal' }}>L/min</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <CameraInput 
+                      label="Foto do Ponto / Teste (Opcional)" 
+                      onPhotoTaken={(b64) => updatePontoConsumo(idx, 'imagem', b64)} 
+                      initialValue={ponto.imagem}
+                    />
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={addPontoConsumo}
+                  className="secondary outline"
+                  style={{ borderStyle: 'dashed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                >
+                  <Plus size={16} /> Adicionar Outro Ponto de Consumo
+                </button>
+              </div>
+
+              <div className="grid-2">
+                <button onClick={() => setStep(2)} className="secondary"><ChevronLeft size={18} /> Voltar</button>
+                <button onClick={() => setStep(4)}>Avançar para Medidores <ChevronRight size={18} /></button>
+              </div>
+            </div>
+          ) : (
+            <div className="card">
+              <h2>Verificações Internas (Checklist)</h2>
               <div style={{ marginBottom: '1.5rem' }}>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-                  Marque o status de cada item inspecionado e anexe foto/vídeo caso seja detectado algum vazamento.
-                </p>
                 {['Vaso Sanitário', 'Torneira Cozinha', 'Torneira Banheiro', 'Chuveiro', 'Área de Serviço'].map((item, idx) => (
                   <div key={idx} style={{ backgroundColor: 'var(--surface)', padding: '0.75rem', borderRadius: '8px', marginBottom: '0.75rem', border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.95rem', fontWeight: '600' }}>{item}</span>
                       <select 
                         style={{ width: '130px', marginBottom: 0, padding: '6px', borderRadius: '6px' }}
@@ -684,105 +1244,54 @@ export default function App() {
                         <option value="vazamento">❌ Vazamento</option>
                       </select>
                     </div>
-                    
-                    {vistoria.dados_gerais?.verificacoes_internas?.[idx]?.status === 'vazamento' && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.5rem' }} className="fade-in">
-                        <CameraInput 
-                          label="Foto do Vazamento" 
-                          onPhotoTaken={(b) => {
-                            const current = vistoria.dados_gerais?.verificacoes_internas || [];
-                            const update = [...current];
-                            update[idx] = { ...update[idx], item, imagem: b };
-                            handleUpdate('dados_gerais.verificacoes_internas', update);
-                          }} 
-                          initialValue={vistoria.dados_gerais?.verificacoes_internas?.[idx]?.imagem}
-                        />
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Vídeo de Prova</label>
-                          <input 
-                            type="file" 
-                            accept="video/*" 
-                            capture="environment"
-                            style={{ padding: '8px', fontSize: '0.75rem', height: 'auto', backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  const current = vistoria.dados_gerais?.verificacoes_internas || [];
-                                  const update = [...current];
-                                  update[idx] = { ...update[idx], item, video: reader.result as string };
-                                  handleUpdate('dados_gerais.verificacoes_internas', update);
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                          />
-                          {vistoria.dados_gerais?.verificacoes_internas?.[idx]?.video && (
-                            <div style={{ color: 'var(--success)', fontSize: '0.75rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <CheckCircle2 size={12} /> Vídeo Anexado
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
-            ) : (
-              <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                <CheckCircle2 size={40} style={{ color: 'var(--success)', marginBottom: '1rem', opacity: 0.5 }} />
-                <p>O checklist de vazamentos internos só se aplica para vistorias do tipo <strong>Água</strong>.</p>
-              </div>
-            )}
 
-            <div className="grid-2" style={{ marginTop: '1.5rem' }}>
-              <button onClick={() => setStep(vistoria.tipo_vistoria === 'ponto_consumo' ? 2 : 1)} className="secondary">
-                <ChevronLeft size={18} /> Voltar
-              </button>
-              <button onClick={() => setStep(4)}>
-                Avançar <ChevronRight size={18} />
-              </button>
+              <div className="grid-2">
+                <button onClick={() => setStep(2)} className="secondary"><ChevronLeft size={18} /> Voltar</button>
+                <button onClick={() => setStep(4)}>Avançar <ChevronRight size={18} /></button>
+              </div>
             </div>
-          </div>
+          )}
         </motion.div>
       )}
 
+      {/* PASSO 4: MEDIDORES & SISTEMAS */}
       {step === 4 && (
         <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
           <div className="card">
             <h2>Medidores & Sistemas</h2>
             
-            {/* Medidor de AF (Água Fria) */}
+            {/* Hidrômetro AF */}
             {isTipoAF(vistoria) && (
-              <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1.25rem' }}>
-                <h3 style={{ fontSize: '1.1rem', color: 'var(--primary)', marginBottom: '1rem' }}>Medidor de AF (Água Fria)</h3>
+              <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginBottom: '1.25rem', border: '1px solid var(--border)' }}>
+                <h3 style={{ margin: '0 0 0.75rem 0', color: 'var(--primary)', fontSize: '1rem' }}>
+                  💧 Hidrômetro AF (Água Fria)
+                </h3>
                 <div className="grid-2">
                   <div className="form-group">
-                    <label>Estado Geral AF</label>
+                    <label>Estado do Medidor AF</label>
                     <select 
-                      value={vistoria.dados_gerais?.estado_medidor_agua || ''} 
+                      value={vistoria.dados_gerais?.estado_medidor_agua || 'bom'} 
                       onChange={e => handleUpdate('dados_gerais.estado_medidor_agua', e.target.value)}
                     >
-                      <option value="">Selecione...</option>
-                      <option value="otimo">Ótimo</option>
                       <option value="bom">Bom</option>
-                      <option value="regular">Regular</option>
                       <option value="ruim">Ruim</option>
-                      <option value="critico">Crítico</option>
+                      <option value="violado">Violado</option>
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Nº Série AF (Opcional)</label>
+                    <label>Nº Série / Serial AF</label>
                     <input 
                       type="text" 
-                      placeholder="Ex: H12345"
+                      placeholder="Ex: AF-123456" 
                       value={vistoria.dados_gerais?.serial_medidor_agua || ''} 
                       onChange={e => handleUpdate('dados_gerais.serial_medidor_agua', e.target.value)} 
                     />
                   </div>
                 </div>
-                <div className="grid-2">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <CameraInput 
                     label="Foto Medidor AF" 
                     onPhotoTaken={b => handleUpdate('dados_gerais.imagem_medidor_agua', b)} 
@@ -794,76 +1303,38 @@ export default function App() {
                     initialValue={vistoria.dados_gerais?.imagem_serial_agua}
                   />
                 </div>
-
-                {/* Teste de Estanqueidade */}
-                <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginTop: '1rem', border: '1px solid var(--border)' }}>
-                  <h4 style={{ fontSize: '0.9rem', margin: '0 0 0.75rem 0' }}>Teste de Estanqueidade (Relógio Parado AF)</h4>
-                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                    <input 
-                      type="checkbox" 
-                      id="relogio_parado_chk"
-                      style={{ width: 'auto', marginBottom: 0 }} 
-                      checked={vistoria.dados_gerais?.relogio_parado_verificado || false}
-                      onChange={e => handleUpdate('dados_gerais.relogio_parado_verificado', e.target.checked)}
-                    />
-                    <label htmlFor="relogio_parado_chk" style={{ marginBottom: 0, fontWeight: '500' }}>Confirmo que o medidor está parado</label>
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Vídeo de Prova (Máx 10s)</label>
-                    <input 
-                      type="file" 
-                      accept="video/*" 
-                      capture="environment"
-                      style={{ padding: '8px', fontSize: '0.8rem', height: 'auto', backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => handleUpdate('dados_gerais.video_relogio_parado', reader.result);
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                    {vistoria.dados_gerais?.video_relogio_parado && (
-                      <div style={{ color: 'var(--success)', fontSize: '0.75rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <CheckCircle2 size={12} /> Vídeo de Estanqueidade Anexado
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
             )}
 
-            {/* Medidor de AQ (Água Quente) */}
+            {/* Hidrômetro AQ */}
             {isTipoAQ(vistoria) && (
-              <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1.25rem' }}>
-                <h3 style={{ fontSize: '1.1rem', color: 'var(--primary)', marginBottom: '1rem' }}>Medidor de AQ (Água Quente)</h3>
+              <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginBottom: '1.25rem', border: '1px solid var(--border)' }}>
+                <h3 style={{ margin: '0 0 0.75rem 0', color: '#f59e0b', fontSize: '1rem' }}>
+                  🔥 Hidrômetro AQ (Água Quente)
+                </h3>
                 <div className="grid-2">
                   <div className="form-group">
-                    <label>Estado Geral AQ</label>
+                    <label>Estado do Medidor AQ</label>
                     <select 
-                      value={vistoria.dados_gerais?.estado_medidor_aq || ''} 
+                      value={vistoria.dados_gerais?.estado_medidor_aq || 'bom'} 
                       onChange={e => handleUpdate('dados_gerais.estado_medidor_aq', e.target.value)}
                     >
-                      <option value="">Selecione...</option>
-                      <option value="otimo">Ótimo</option>
                       <option value="bom">Bom</option>
-                      <option value="regular">Regular</option>
                       <option value="ruim">Ruim</option>
-                      <option value="critico">Crítico</option>
+                      <option value="violado">Violado</option>
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Nº Série AQ (Opcional)</label>
+                    <label>Nº Série / Serial AQ</label>
                     <input 
                       type="text" 
-                      placeholder="Ex: AQ12345"
+                      placeholder="Ex: AQ-987654" 
                       value={vistoria.dados_gerais?.serial_medidor_aq || ''} 
                       onChange={e => handleUpdate('dados_gerais.serial_medidor_aq', e.target.value)} 
                     />
                   </div>
                 </div>
-                <div className="grid-2">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <CameraInput 
                     label="Foto Medidor AQ" 
                     onPhotoTaken={b => handleUpdate('dados_gerais.imagem_medidor_aq', b)} 
@@ -878,147 +1349,41 @@ export default function App() {
               </div>
             )}
 
-            {/* Medidor de Gás */}
-            {isTipoGas(vistoria) && (
-              <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1.25rem' }}>
-                <h3 style={{ fontSize: '1.1rem', color: 'var(--primary)', marginBottom: '1rem' }}>Medidor de Gás</h3>
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label>Estado Geral Gás</label>
-                    <select 
-                      value={vistoria.dados_gerais?.estado_medidor_gas || ''}
-                      onChange={e => handleUpdate('dados_gerais.estado_medidor_gas', e.target.value)}
-                    >
-                      <option value="">Selecione...</option>
-                      <option value="otimo">Ótimo</option>
-                      <option value="bom">Bom</option>
-                      <option value="regular">Regular</option>
-                      <option value="ruim">Ruim</option>
-                      <option value="critico">Crítico</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Nº Série Gás (Opcional)</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ex: G12345"
-                      value={vistoria.dados_gerais?.serial_medidor_gas || ''} 
-                      onChange={e => handleUpdate('dados_gerais.serial_medidor_gas', e.target.value)} 
-                    />
-                  </div>
-                </div>
-                <div className="grid-2">
-                  <CameraInput 
-                    label="Foto Medidor (Gás)" 
-                    onPhotoTaken={b => handleUpdate('dados_gerais.imagem_medidor_gas', b)} 
-                    initialValue={vistoria.dados_gerais?.imagem_medidor_gas}
-                  />
-                  <CameraInput 
-                    label="Foto Serial Gás" 
-                    onPhotoTaken={b => handleUpdate('dados_gerais.imagem_serial_gas', b)} 
-                    initialValue={vistoria.dados_gerais?.imagem_serial_gas}
-                  />
-                </div>
+            {/* Estanqueidade */}
+            <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input 
+                  type="checkbox" 
+                  id="chkEstanqueidade"
+                  checked={vistoria.dados_gerais?.relogio_parado_verificado || false}
+                  onChange={e => handleUpdate('dados_gerais.relogio_parado_verificado', e.target.checked)}
+                  style={{ width: '20px', height: '20px', margin: 0 }}
+                />
+                <label htmlFor="chkEstanqueidade" style={{ margin: 0, fontWeight: '600', cursor: 'pointer' }}>
+                  Estanqueidade Verificada (Relógio 100% Parado sem Consumo)
+                </label>
               </div>
-            )}
+            </div>
 
-            {/* Sistema de Aquecimento */}
-            {(isTipoAQ(vistoria) || isTipoGas(vistoria) || vistoria.dados_gerais?.sistema_aquecimento) && (
-              <div style={{ marginBottom: '1rem' }}>
-                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                  <input 
-                    type="checkbox" 
-                    id="sistema_aquecimento_chk"
-                    style={{ width: 'auto', marginBottom: 0 }} 
-                    checked={vistoria.dados_gerais?.sistema_aquecimento || false}
-                    onChange={e => handleUpdate('dados_gerais.sistema_aquecimento', e.target.checked)}
-                  />
-                  <label htmlFor="sistema_aquecimento_chk" style={{ marginBottom: 0, fontWeight: '500' }}>Possui Sistema de Aquecimento?</label>
-                </div>
-
-                {vistoria.dados_gerais?.sistema_aquecimento && (
-                  <div className="fade-in" style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                    <div className="form-group">
-                      <label>Tipo de Aquecimento</label>
-                      <select 
-                        value={vistoria.dados_gerais.tipo_aquecimento || 'aquecedor'} 
-                        onChange={e => handleUpdate('dados_gerais.tipo_aquecimento', e.target.value)}
-                      >
-                        <option value="aquecedor">Aquecedor de Passagem</option>
-                        <option value="boiler">Boiler</option>
-                        <option value="caldeira">Caldeira</option>
-                      </select>
-                    </div>
-                    
-                    {vistoria.dados_gerais.tipo_aquecimento === 'aquecedor' && (
-                      <div className="form-group">
-                        <label>Última Manutenção (Mês/Ano)</label>
-                        <input 
-                          type="text" 
-                          placeholder="Ex: 10/2023" 
-                          value={vistoria.dados_gerais.ultima_manutencao_aquecedor || ''} 
-                          onChange={e => handleUpdate('dados_gerais.ultima_manutencao_aquecedor', e.target.value)} 
-                        />
-                        <CameraInput 
-                          label="Foto da Placa/Manutenção" 
-                          onPhotoTaken={b => handleUpdate('dados_gerais.imagem_manutencao', b)} 
-                          initialValue={vistoria.dados_gerais.imagem_manutencao}
-                        />
-                      </div>
-                    )}
-                    <CameraInput 
-                      label="Foto do Equipamento" 
-                      onPhotoTaken={b => handleUpdate('dados_gerais.imagem_aquecimento', b)} 
-                      initialValue={vistoria.dados_gerais.imagem_aquecimento}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="grid-2" style={{ marginTop: '1.5rem' }}>
-              <button onClick={() => setStep(3)} className="secondary">
-                <ChevronLeft size={18} /> Voltar
-              </button>
-              <button onClick={() => setStep(5)}>
-                Avançar <ChevronRight size={18} />
-              </button>
+            <div className="grid-2">
+              <button onClick={() => setStep(3)} className="secondary"><ChevronLeft size={18} /> Voltar</button>
+              <button onClick={() => setStep(5)}>Avançar para Parecer <ChevronRight size={18} /></button>
             </div>
           </div>
         </motion.div>
       )}
 
+      {/* PASSO 5: PARECER TÉCNICO & ASSINATURAS */}
       {step === 5 && (
         <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
           <div className="card">
-            <h2>Parecer & Assinatura</h2>
+            <h2>Parecer Técnico & Assinaturas</h2>
             
-            <div className="grid-2">
-              <div className="form-group">
-                <label>Temp. Água Quente (Opcional)</label>
-                <input 
-                  type="number" 
-                  placeholder="Ex: 42" 
-                  value={vistoria.dados_gerais?.temperatura_agua_quente || ''}
-                  onChange={e => handleUpdate('dados_gerais.temperatura_agua_quente', e.target.value)} 
-                />
-              </div>
-              <div className="form-group">
-                <label>Pressão MCA (Opcional)</label>
-                <input 
-                  type="number" 
-                  placeholder="Ex: 5" 
-                  value={vistoria.dados_gerais?.pressao_agua || ''}
-                  onChange={e => handleUpdate('dados_gerais.pressao_agua', e.target.value)} 
-                />
-              </div>
-            </div>
-
             <div className="form-group">
               <label>Parecer Técnico Final (Obrigatório)</label>
               <textarea 
                 rows={5} 
-                placeholder="Descreva detalhadamente as condições observadas e recomendações técnicas..."
+                placeholder="Descreva detalhadamente as condições observadas, resultados dos testes de alto consumo e orientações técnicas..."
                 value={vistoria.parecer_tecnico || ''}
                 onChange={e => handleUpdate('parecer_tecnico', e.target.value)}
               />
@@ -1030,7 +1395,7 @@ export default function App() {
               helperText="O morador ou responsável pela unidade deve assinar abaixo para comprovar a presença e o recebimento da vistoria."
               onSave={b => {
                 handleUpdate('assinatura_cliente', b);
-                handleUpdate('assinatura', b); // Mantém retrocompatibilidade
+                handleUpdate('assinatura', b);
               }} 
               initialValue={vistoria.assinatura_cliente || vistoria.assinatura}
             />
