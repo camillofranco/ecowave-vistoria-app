@@ -207,65 +207,71 @@ export default function App() {
       const { Filesystem, Directory } = await import('@capacitor/filesystem');
       const { Share } = await import('@capacitor/share');
 
-      const filesToShare: string[] = [];
-
       // 1. Gerar e Salvar PDF
       const base64Data = await generatePDF(v, logoImg);
-      const safeCondoName = v.condominio.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const pdfFileName = `Relatorio_${safeCondoName}_${v.unidade}.pdf`;
+      const safeCondoName = (v.condominio || 'Vistoria').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const pdfFileName = `Relatorio_${safeCondoName}_${v.unidade || 'Unidade'}.pdf`;
 
-      const savedPdf = await Filesystem.writeFile({
-        path: pdfFileName,
-        data: base64Data,
-        directory: Directory.Cache
-      });
-      filesToShare.push(savedPdf.uri);
-
-      // Inicia backup do PDF em background
-      syncToCloud(pdfFileName, base64Data, 'application/pdf');
-
-      // 2. Salvar Vídeo de Estanqueidade (se houver)
-      if (v.dados_gerais?.video_relogio_parado) {
-        const videoB64 = v.dados_gerais.video_relogio_parado;
-        const videoName = `Video_Estanqueidade_${v.unidade}.mp4`;
-        const savedVideo = await Filesystem.writeFile({
-          path: videoName,
-          data: videoB64.split(',')[1],
+      let pdfFileUri = '';
+      try {
+        const savedPdf = await Filesystem.writeFile({
+          path: pdfFileName,
+          data: base64Data,
           directory: Directory.Cache
         });
-        filesToShare.push(savedVideo.uri);
-        // Backup do vídeo em background
-        syncToCloud(videoName, videoB64, 'video/mp4');
+        pdfFileUri = savedPdf.uri;
+      } catch (fsErr) {
+        console.warn('Erro ao gravar no Directory.Cache:', fsErr);
       }
 
-      // 3. Salvar Vídeos de Vazamentos (Checklist)
-      if (v.dados_gerais?.verificacoes_internas) {
-        for (const item of v.dados_gerais.verificacoes_internas) {
-          if (item.status === 'vazamento' && item.video) {
-            const vB64 = item.video;
-            const vName = `Vazamento_${item.item.replace(/\s/g, '_')}_${v.unidade}.mp4`;
-            const sV = await Filesystem.writeFile({
-              path: vName,
-              data: vB64.split(',')[1],
-              directory: Directory.Cache
-            });
-            filesToShare.push(sV.uri);
-            // Backup do vídeo em background
-            syncToCloud(vName, vB64, 'video/mp4');
+      // Inicia backup do PDF em background
+      try {
+        syncToCloud(pdfFileName, base64Data, 'application/pdf');
+      } catch (e) {}
+
+      // Backup dos vídeos de prova em background (se existirem)
+      if (v.dados_gerais?.video_relogio_parado) {
+        syncToCloud(`Video_Estanqueidade_${v.unidade || 'Unidade'}.mp4`, v.dados_gerais.video_relogio_parado, 'video/mp4');
+      }
+
+      // 2. Compartilhar via Share nativo do Android
+      if (pdfFileUri) {
+        try {
+          await Share.share({
+            title: `Laudo Técnico EcoWave - ${v.condominio || ''}`,
+            text: `Relatório Técnico de Vistoria: ${v.condominio || ''} - Bloco ${v.bloco || ''} Unidade ${v.unidade || ''}`,
+            files: [pdfFileUri],
+            dialogTitle: 'Enviar Laudo Técnico (PDF)'
+          });
+          return;
+        } catch (shareErr: any) {
+          if (shareErr?.message?.includes('cancel') || shareErr?.message?.includes('closed') || shareErr?.message?.includes('dismiss')) {
+            return;
           }
+          console.warn('Share nativo falhou, aplicando download...', shareErr);
         }
       }
 
-      // 4. Compartilhar tudo de uma vez
-      await Share.share({
-        title: 'Vistoria EcoWave',
-        text: `Relatório Técnico e Vídeos de Prova: ${v.condominio} - ${v.unidade}`,
-        files: filesToShare,
-        dialogTitle: 'Enviar Vistoria Completa'
-      });
-    } catch (err) {
-      console.error('Erro ao compartilhar vistoria completa:', err);
-      alert('Erro ao processar arquivos para envio.');
+      // Fallback: Download direto do PDF no navegador / WebView
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = pdfFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+
+    } catch (err: any) {
+      console.error('Erro ao compartilhar vistoria:', err);
+      alert(`Erro ao processar PDF: ${err?.message || 'Verifique as informações preenchidas.'}`);
     }
   };
 

@@ -1,10 +1,11 @@
 {
-  "version": "1.6.0",
-  "releaseDate": "31/08/2026",
-  "title": "Atualização EcoWave v1.6.0 - Ajuste Fino Visual",
+  "version": "1.7.0",
+  "releaseDate": "01/09/2026",
+  "title": "Atualização EcoWave v1.7.0 - Correção no Envio do Laudo PDF",
   "changelog": [
-    "Ajuste fino no Tema Claro: Caixas de captura de fotos com fundo e bordas adaptativas",
-    "Harmonização visual completa em todos os passos da vistoria",
-    "Novo Seletor de Tema no topo: Claro ☀️, Escuro 🌙 e Sistema ⚙️"
+    "Correção no Envio e Compartilhamento do Laudo em PDF (WhatsApp / Email)",
+    "Geração de laudos reforçada com proteção contra falhas",
+    "Download direto de emergência do PDF caso o app receptor falhe",
+    "Sincronização em nuvem automática dos relatórios e vídeos"
   ]
 }

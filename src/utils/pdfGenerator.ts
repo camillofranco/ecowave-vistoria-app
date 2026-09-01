@@ -1,14 +1,14 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { Vistoria } from '../db/database';
+import type { Vistoria, DadosGerais } from '../db/database';
 
-export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
+export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string> => {
   const doc = new jsPDF();
   const width = doc.internal.pageSize.getWidth();
   const height = doc.internal.pageSize.getHeight();
   const margin = 20;
 
-  // Cores da Logo (Aproximadas)
+  // Cores Oficiais EcoWave
   const colorGreen: [number, number, number] = [45, 138, 60]; // #2d8a3c
   const colorPurple: [number, number, number] = [63, 61, 122]; // #3f3d7a
   const colorLightGray: [number, number, number] = [248, 250, 252];
@@ -21,13 +21,22 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
       const blob = await response.blob();
       return new Promise((resolve) => {
         const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
+        reader.onloadend = () => resolve((reader.result as string) || '');
         reader.readAsDataURL(blob);
       });
-    } catch { return ''; }
+    } catch { 
+      return ''; 
+    }
   };
 
-  const logoBase64 = logoUrl ? await getBase64FromUrl(logoUrl) : '';
+  let logoBase64 = '';
+  if (logoUrl) {
+    try {
+      logoBase64 = await getBase64FromUrl(logoUrl);
+    } catch (e) {
+      console.warn('Erro ao carregar logo para PDF', e);
+    }
+  }
 
   // Auxiliar para Rodapé
   const addFooter = (pageNum: number, totalPages: number) => {
@@ -44,8 +53,12 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
   // Faixa de Topo
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, width, 40, 'F');
-  if (logoBase64) {
-    doc.addImage(logoBase64, 'PNG', margin, 10, 50, 18);
+  if (logoBase64 && logoBase64.includes('base64,')) {
+    try {
+      doc.addImage(logoBase64, 'PNG', margin, 10, 50, 18);
+    } catch (e) {
+      console.warn('Não foi possível renderizar a logo no PDF', e);
+    }
   }
   
   doc.setDrawColor(...colorGreen);
@@ -60,7 +73,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
   
   doc.setFontSize(10);
   doc.setTextColor(100);
-  doc.text(`EMISSÃO: ${v.data} às ${v.hora} | ID: #${v.id || 'N/A'}`, margin, 56);
+  doc.text(`EMISSÃO: ${v.data || ''} às ${v.hora || ''} | ID: #${v.id || 'N/A'}`, margin, 56);
 
   // 1. Bloco de Informações do Cliente (Elegante)
   doc.setFillColor(...colorLightGray);
@@ -73,10 +86,10 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
   
   doc.setTextColor(...colorDarkGray);
   doc.setFontSize(11);
-  doc.text(`Condomínio: ${v.condominio}`, margin + 5, 80);
+  doc.text(`Condomínio: ${v.condominio || '-'}`, margin + 5, 80);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Bloco: ${v.bloco} | Unidade: ${v.unidade}`, margin + 5, 87);
-  doc.text(`Técnico: ${v.tecnico}`, margin + 5, 94);
+  doc.text(`Bloco: ${v.bloco || '-'} | Unidade: ${v.unidade || '-'}`, margin + 5, 87);
+  doc.text(`Técnico: ${v.tecnico || '-'}`, margin + 5, 94);
   
   const isAF = !v.subtipo_vistoria
     ? (v.tipo_vistoria === 'agua' || v.tipo_vistoria === 'agua_gas' || v.tipo_vistoria === 'ponto_consumo' || !v.tipo_vistoria)
@@ -94,7 +107,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
   doc.setFont('helvetica', 'bold');
   doc.text(`TIPO: ${tipoExibicao}`, width - margin - 5, 80, { align: 'right' });
   doc.setFont('helvetica', 'normal');
-  doc.text(`Responsável: ${v.responsavel_unidade}`, width - margin - 5, 87, { align: 'right' });
+  doc.text(`Responsável: ${v.responsavel_unidade || '-'}`, width - margin - 5, 87, { align: 'right' });
 
   // 2. Testes de Leitura (Tabela Moderna)
   let currentY = 110;
@@ -103,16 +116,17 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
   doc.setFont('helvetica', 'bold');
   doc.text('ANÁLISE DE CONSUMO E LEITURAS', margin, currentY);
   
+  const testesList = v.testes || [];
   autoTable(doc, {
     startY: currentY + 5,
     margin: { left: margin, right: margin },
     head: [['REFERÊNCIA', 'LEITURA INICIAL', 'LEITURA FINAL', 'DIFERENÇA (m³)', 'RECIPIENTE (L)']],
-    body: v.testes.map((t, i) => [
+    body: testesList.map((t, i) => [
       `Teste #${i+1}`,
-      t.leitura_antes,
-      t.leitura_depois,
-      { content: t.diferenca.toFixed(3).replace('.', ','), styles: { fontStyle: 'bold', textColor: t.diferenca < 0 ? [239, 68, 68] : [16, 185, 129] } },
-      t.litros_recipiente
+      t.leitura_antes || '-',
+      t.leitura_depois || '-',
+      { content: (t.diferenca || 0).toFixed(3).replace('.', ','), styles: { fontStyle: 'bold', textColor: (t.diferenca || 0) < 0 ? [239, 68, 68] : [16, 185, 129] } },
+      t.litros_recipiente || '-'
     ]),
     theme: 'striped',
     headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 9, halign: 'center' },
@@ -120,14 +134,14 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
     columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } }
   });
 
-  currentY = (doc as any).lastAutoTable.finalY + 15;
+  currentY = ((doc as any).lastAutoTable?.finalY || 130) + 15;
 
   // 3. Status Técnico (Dashboard Style)
   doc.setTextColor(...colorPurple);
   doc.setFontSize(14);
   doc.text('PARÂMETROS TÉCNICOS E STATUS', margin, currentY);
   
-  const dg = v.dados_gerais;
+  const dg = v.dados_gerais || ({} as DadosGerais);
   const statusRows: any[] = [];
 
   if (isAF) {
@@ -166,7 +180,6 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
     ]);
   }
 
-  // Só adiciona linha de aquecimento se houver AQ, Gás ou se marcado
   if ((isAQ || isGas || dg.sistema_aquecimento) && dg.sistema_aquecimento) {
     statusRows.push([
       { content: 'SISTEMA AQUECIMENTO', styles: { fontStyle: 'bold' as const, textColor: 100 } },
@@ -176,12 +189,10 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
     ]);
   }
 
-  // Adiciona Temperatura e Pressão apenas se preenchidos
   const extraRow: any[] = [];
   if (dg.temperatura_agua_quente) extraRow.push({ content: 'TEMP. AQ', styles: { fontStyle: 'bold' as const, textColor: 100 } }, { content: `${dg.temperatura_agua_quente}°C`, styles: { fontStyle: 'bold' as const } });
   if (dg.pressao_agua) extraRow.push({ content: 'PRESSÃO', styles: { fontStyle: 'bold' as const, textColor: 100 } }, { content: `${dg.pressao_agua} MCA`, styles: { fontStyle: 'bold' as const } });
   
-  // Garante que a linha tenha 4 colunas para não quebrar o layout
   while (extraRow.length > 0 && extraRow.length < 4) {
     extraRow.push({ content: '', styles: {} });
   }
@@ -196,11 +207,11 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
       body: statusRows,
       styles: { fontSize: 9, cellPadding: 4 },
     });
-    currentY = (doc as any).lastAutoTable.finalY + 15;
+    currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 15;
   }
 
-  // 3.5 Checklist de Verificações (Novo)
-  if (isWater && dg.verificacoes_internas?.length > 0) {
+  // 3.5 Checklist de Verificações
+  if (isWater && dg.verificacoes_internas && dg.verificacoes_internas.length > 0) {
     doc.setTextColor(...colorPurple);
     doc.setFontSize(14);
     doc.text('VERIFICAÇÕES DE VAZAMENTOS INTERNOS', margin, currentY);
@@ -218,7 +229,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
       headStyles: { fillColor: [240, 240, 240], textColor: colorPurple, fontSize: 8 },
       bodyStyles: { fontSize: 9 }
     });
-    currentY = (doc as any).lastAutoTable.finalY + 15;
+    currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 15;
   }
 
   // 4. Parecer e Assinatura
@@ -229,29 +240,33 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
   doc.setFont('helvetica', 'bold');
   doc.text('PARECER TÉCNICO FINAL:', margin + 5, currentY + 10);
   doc.setFont('helvetica', 'normal');
-  const splitParecer = doc.splitTextToSize(v.parecer_tecnico, width - (margin * 2) - 10);
+  const splitParecer = doc.splitTextToSize(v.parecer_tecnico || 'Vistoria técnica finalizada.', width - (margin * 2) - 10);
   doc.text(splitParecer, margin + 5, currentY + 18);
 
-  if (v.assinatura) {
+  if (v.assinatura && v.assinatura.includes('base64,')) {
     const sigY = currentY + 60;
     doc.setDrawColor(200);
     doc.line(margin, sigY + 20, margin + 70, sigY + 20);
-    doc.addImage(v.assinatura, 'PNG', margin + 5, sigY - 5, 60, 20);
+    try {
+      doc.addImage(v.assinatura, 'PNG', margin + 5, sigY - 5, 60, 20);
+    } catch (e) {
+      console.warn('Erro ao renderizar assinatura no PDF', e);
+    }
     doc.setFontSize(8);
     doc.text('ASSINATURA TÉCNICA / RESPONSÁVEL', margin, sigY + 25);
   }
 
   // --- PÁGINA 2: GALERIA ---
-  doc.addPage();
-
   let imgCount = 0;
   const addImageToDoc = (dataUrl: string, label: string) => {
-    // 2 imagens por página. Se atingir o limite, pula página.
-    if (imgCount > 0 && imgCount % 2 === 0) {
+    if (!dataUrl || !dataUrl.includes('base64,')) return;
+
+    if (imgCount === 0) {
+      doc.addPage();
+    } else if (imgCount % 2 === 0) {
       doc.addPage();
     }
     
-    // Cabeçalho da página de anexo (apenas no topo de cada página da galeria)
     if (imgCount % 2 === 0) {
       doc.setFillColor(...colorPurple);
       doc.rect(0, 0, width, 15, 'F');
@@ -261,40 +276,40 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
       doc.text('ANEXO FOTOGRÁFICO - EVIDÊNCIAS DE CAMPO', width / 2, 10, { align: 'center' });
     }
     
-    // Determinar y base dependendo se é a primeira ou segunda imagem da página
     const isSecond = imgCount % 2 === 1;
     const yBase = isSecond ? 148 : 22;
     const imgW = 130;
     const imgH = 97.5;
-    const xPos = (width - imgW) / 2; // Centraliza a imagem na página
+    const xPos = (width - imgW) / 2;
     
-    // Legenda acima da imagem
     doc.setTextColor(...colorPurple);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text(label.toUpperCase(), margin, yBase + 8);
     
-    // Moldura elegante da imagem
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.5);
     doc.rect(xPos - 1, yBase + 12, imgW + 2, imgH + 2);
     
-    // Imagem ampliada
-    doc.addImage(dataUrl, 'JPEG', xPos, yBase + 13, imgW, imgH);
+    try {
+      const isPng = dataUrl.startsWith('data:image/png');
+      doc.addImage(dataUrl, isPng ? 'PNG' : 'JPEG', xPos, yBase + 13, imgW, imgH);
+    } catch (e) {
+      console.error('Erro ao adicionar foto ao PDF:', e);
+    }
     
-    // Metadados abaixo da imagem
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    doc.setTextColor(148, 163, 184); // Slate 400
-    doc.text(`Registro Oficial EcoWave • Data: ${v.data} às ${v.hora}`, margin, yBase + 13 + imgH + 6);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Registro Oficial EcoWave • Data: ${v.data || ''} às ${v.hora || ''}`, margin, yBase + 13 + imgH + 6);
     
     imgCount++;
   };
 
-  v.testes.forEach((t, i) => {
-    if (t.imagens.antes) addImageToDoc(t.imagens.antes, `Teste #${i+1} - Leitura Inicial`);
-    if (t.imagens.depois) addImageToDoc(t.imagens.depois, `Teste #${i+1} - Leitura Final`);
-    if (t.imagens.recipiente) addImageToDoc(t.imagens.recipiente, `Teste #${i+1} - Verificação Recipiente`);
+  (v.testes || []).forEach((t, i) => {
+    if (t.imagens?.antes) addImageToDoc(t.imagens.antes, `Teste #${i+1} - Leitura Inicial`);
+    if (t.imagens?.depois) addImageToDoc(t.imagens.depois, `Teste #${i+1} - Leitura Final`);
+    if (t.imagens?.recipiente) addImageToDoc(t.imagens.recipiente, `Teste #${i+1} - Verificação Recipiente`);
   });
 
   if (v.ponto_consumo?.imagem_recipiente) addImageToDoc(v.ponto_consumo.imagem_recipiente, 'Ponto de Consumo');
@@ -306,7 +321,6 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
   if (dg.imagem_serial_gas) addImageToDoc(dg.imagem_serial_gas, 'Serial Medidor Gás');
   if (dg.imagem_aquecimento) addImageToDoc(dg.imagem_aquecimento, 'Sistema de Aquecimento');
 
-  // Adiciona imagens do checklist se houver vazamento
   dg.verificacoes_internas?.forEach(item => {
     if (item.imagem) addImageToDoc(item.imagem, `Vazamento: ${item.item}`);
   });
@@ -316,6 +330,6 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string) => {
     addFooter(i, totalPages);
   }
 
-  return doc.output('datauristring').split(',')[1];
+  const outputUri = doc.output('datauristring');
+  return outputUri.includes(',') ? outputUri.split(',')[1] : outputUri;
 };
-

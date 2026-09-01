@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import logo from '../assets/logo.png';
 import { Sparkles, RefreshCw, X, CheckCircle2, Zap, AlertCircle, Sun, Moon, Laptop } from 'lucide-react';
 
-const CURRENT_LOCAL_VERSION = '1.6.0';
+const CURRENT_LOCAL_VERSION = '1.7.0';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
