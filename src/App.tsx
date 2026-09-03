@@ -35,6 +35,7 @@ import logoImg from './assets/logo.png';
 
 export const TIPOS_VISTORIA = [
   'Alto Consumo',
+  'Reconfiguração de Equipamento',
   'Geral',
   'Troca de Equipamento',
   'Vazamento'
@@ -492,6 +493,7 @@ export default function App() {
   };
 
   const isAltoConsumo = vistoria.tipo_vistoria === 'Alto Consumo';
+  const isReconfiguracao = vistoria.tipo_vistoria === 'Reconfiguração de Equipamento';
 
   if (showHistory) {
     return (
@@ -708,6 +710,91 @@ export default function App() {
               </div>
             )}
 
+            {/* IDENTIFICAÇÃO DOS EQUIPAMENTOS (OBRIGATÓRIO PARA TODOS OS TIPOS) */}
+            <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginBottom: '1.25rem', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--primary)', marginBottom: '0.75rem', textTransform: 'uppercase' }}>
+                Identificação dos Equipamentos
+              </div>
+
+              {isTipoAF(vistoria) && (
+                <div className="grid-2" style={{ marginBottom: '0.75rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Nº Série Medidor AF (Letras Maiúsculas)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: A25S12345" 
+                      value={vistoria.dados_gerais?.serial_medidor_agua || ''} 
+                      onChange={e => handleUpdate('dados_gerais.serial_medidor_agua', e.target.value.toUpperCase())}
+                      style={{ textTransform: 'uppercase', marginBottom: 0 }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Nº Série Transmissor AF (Apenas Números)</label>
+                    <input 
+                      type="text" 
+                      inputMode="numeric"
+                      placeholder="Ex: 98765432" 
+                      value={vistoria.dados_gerais?.serial_transmissor_agua || ''} 
+                      onChange={e => handleUpdate('dados_gerais.serial_transmissor_agua', e.target.value.replace(/\D/g, ''))}
+                      style={{ marginBottom: 0 }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {isTipoAQ(vistoria) && (
+                <div className="grid-2" style={{ marginBottom: '0.75rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Nº Série Medidor AQ (Letras Maiúsculas)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Q25S98765" 
+                      value={vistoria.dados_gerais?.serial_medidor_aq || ''} 
+                      onChange={e => handleUpdate('dados_gerais.serial_medidor_aq', e.target.value.toUpperCase())}
+                      style={{ textTransform: 'uppercase', marginBottom: 0 }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Nº Série Transmissor AQ (Apenas Números)</label>
+                    <input 
+                      type="text" 
+                      inputMode="numeric"
+                      placeholder="Ex: 88765432" 
+                      value={vistoria.dados_gerais?.serial_transmissor_aq || ''} 
+                      onChange={e => handleUpdate('dados_gerais.serial_transmissor_aq', e.target.value.replace(/\D/g, ''))}
+                      style={{ marginBottom: 0 }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {isTipoGas(vistoria) && (
+                <div className="grid-2" style={{ marginBottom: '0.75rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Nº Série Medidor Gás (Letras Maiúsculas)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: G25S77777" 
+                      value={vistoria.dados_gerais?.serial_medidor_gas || ''} 
+                      onChange={e => handleUpdate('dados_gerais.serial_medidor_gas', e.target.value.toUpperCase())}
+                      style={{ textTransform: 'uppercase', marginBottom: 0 }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Nº Série Transmissor Gás (Apenas Números)</label>
+                    <input 
+                      type="text" 
+                      inputMode="numeric"
+                      placeholder="Ex: 77765432" 
+                      value={vistoria.dados_gerais?.serial_transmissor_gas || ''} 
+                      onChange={e => handleUpdate('dados_gerais.serial_transmissor_gas', e.target.value.replace(/\D/g, ''))}
+                      style={{ marginBottom: 0 }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button onClick={() => {
               handleUpdate('data', format(new Date(), 'yyyy-MM-dd'));
               handleUpdate('hora', format(new Date(), 'HH:mm'));
@@ -722,10 +809,45 @@ export default function App() {
         </motion.div>
       )}
 
-      {/* PASSO 1: INSPEÇÃO DE CAIXAS ACOPLADAS (ALTO CONSUMO) OU TESTES LEITURA (GERAL) */}
+      {/* PASSO 1: RECONFIGURAÇÃO (ANTES) OU INSPEÇÃO DE CAIXAS ACOPLADAS (ALTO CONSUMO) OU TESTES LEITURA (GERAL) */}
       {step === 1 && (
         <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
-          {isAltoConsumo ? (
+          {isReconfiguracao ? (
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '1.5rem' }}>📸</span>
+                <h2 style={{ margin: 0 }}>1. Antes da Reconfiguração</h2>
+              </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                Capture as 3 fotos obrigatórias das condições iniciais antes de executar a reconfiguração:
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                <CameraInput 
+                  label="1. Foto do Medidor (Antes da Reconfiguração)"
+                  onPhotoTaken={b => handleUpdate('reconfiguracao.imagem_medidor_antes', b)}
+                  initialValue={vistoria.reconfiguracao?.imagem_medidor_antes}
+                />
+
+                <CameraInput 
+                  label="2. Foto do Transmissor (Antes da Reconfiguração)"
+                  onPhotoTaken={b => handleUpdate('reconfiguracao.imagem_transmissor_antes', b)}
+                  initialValue={vistoria.reconfiguracao?.imagem_transmissor_antes}
+                />
+
+                <CameraInput 
+                  label="3. Foto da Leitura do Sistema (Antes da Reconfiguração)"
+                  onPhotoTaken={b => handleUpdate('reconfiguracao.imagem_sistema_antes', b)}
+                  initialValue={vistoria.reconfiguracao?.imagem_sistema_antes}
+                />
+              </div>
+
+              <div className="grid-2">
+                <button onClick={() => setStep(0)} className="secondary"><ChevronLeft size={18} /> Voltar</button>
+                <button onClick={() => setStep(2)}>Avançar para 'Após Reconfiguração' <ChevronRight size={18} /></button>
+              </div>
+            </div>
+          ) : isAltoConsumo ? (
             <div className="card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
                 <span style={{ fontSize: '1.5rem' }}>🚽</span>
@@ -934,10 +1056,52 @@ export default function App() {
         </motion.div>
       )}
 
-      {/* PASSO 2: AFERIÇÃO DO HIDRÔMETRO (BALDE 10L) */}
+      {/* PASSO 2: RECONFIGURAÇÃO (DEPOIS) OU AFERIÇÃO DO HIDRÔMETRO (ALTO CONSUMO) OU MEDIDORES (GERAL) */}
       {step === 2 && (
         <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
-          {isAltoConsumo ? (
+          {isReconfiguracao ? (
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '1.5rem' }}>✅</span>
+                <h2 style={{ margin: 0 }}>2. Após a Reconfiguração</h2>
+              </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                Capture as 3 fotos comprovando a reconfiguração e o sincronismo dos dados com o sistema:
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                <CameraInput 
+                  label="1. Foto do Medidor (Após a Reconfiguração)"
+                  onPhotoTaken={b => handleUpdate('reconfiguracao.imagem_medidor_depois', b)}
+                  initialValue={vistoria.reconfiguracao?.imagem_medidor_depois}
+                />
+
+                <CameraInput 
+                  label="2. Foto do Transmissor (Após a Reconfiguração)"
+                  onPhotoTaken={b => handleUpdate('reconfiguracao.imagem_transmissor_depois', b)}
+                  initialValue={vistoria.reconfiguracao?.imagem_transmissor_depois}
+                />
+
+                <CameraInput 
+                  label="3. Foto da Leitura do Sistema (Após a Reconfiguração)"
+                  onPhotoTaken={b => handleUpdate('reconfiguracao.imagem_sistema_depois', b)}
+                  initialValue={vistoria.reconfiguracao?.imagem_sistema_depois}
+                />
+              </div>
+
+              <div className="grid-2">
+                <button onClick={() => setStep(1)} className="secondary"><ChevronLeft size={18} /> Voltar</button>
+                <button onClick={() => {
+                  if (!vistoria.parecer_tecnico) {
+                    handleUpdate('parecer_tecnico', 'Equipamento reconfigurado e sincronizado com sucesso com a central de telemetria.');
+                  }
+                  setStep(3);
+                }}>
+                  Avançar para Parecer <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+          ) : isAltoConsumo ? (
             <div className="card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
                 <span style={{ fontSize: '1.5rem' }}>🪣</span>
@@ -1380,34 +1544,88 @@ export default function App() {
             </div>
           ) : (
             <div className="card">
-              <h2>Verificações Internas (Checklist)</h2>
-              <div style={{ marginBottom: '1.5rem' }}>
-                {['Vaso Sanitário', 'Torneira Cozinha', 'Torneira Banheiro', 'Chuveiro', 'Área de Serviço'].map((item, idx) => (
-                  <div key={idx} style={{ backgroundColor: 'var(--surface)', padding: '0.75rem', borderRadius: '8px', marginBottom: '0.75rem', border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.95rem', fontWeight: '600' }}>{item}</span>
-                      <select 
-                        style={{ width: '130px', marginBottom: 0, padding: '6px', borderRadius: '6px' }}
-                        value={vistoria.dados_gerais?.verificacoes_internas?.[idx]?.status || 'ok'}
-                        onChange={(e) => {
-                          const current = vistoria.dados_gerais?.verificacoes_internas || [];
-                          const update = [...current];
-                          update[idx] = { ...update[idx], item, status: e.target.value as any };
-                          handleUpdate('dados_gerais.verificacoes_internas', update);
-                        }}
-                      >
-                        <option value="ok">✅ OK</option>
-                        <option value="vazamento">❌ Vazamento</option>
-                      </select>
-                    </div>
-                  </div>
-                ))}
+              <h2>Parecer Técnico & Assinaturas</h2>
+              
+              <div className="form-group">
+                <label>Parecer Técnico Final (Obrigatório)</label>
+                <textarea 
+                  rows={5} 
+                  placeholder="Descreva detalhadamente as condições observadas, resultados das verificações e orientações técnicas..."
+                  value={vistoria.parecer_tecnico || ''}
+                  onChange={e => handleUpdate('parecer_tecnico', e.target.value)}
+                />
               </div>
 
-              <div className="grid-2">
-                <button onClick={() => setStep(2)} className="secondary"><ChevronLeft size={18} /> Voltar</button>
-                <button onClick={() => setStep(4)}>Avançar <ChevronRight size={18} /></button>
+              {/* 1. Assinatura do Morador / Responsável */}
+              <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginBottom: '1.25rem', border: '1px solid var(--border)' }}>
+                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                  <label style={{ fontWeight: '600' }}>Nome do Morador / Responsável pelo Acompanhamento</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: João da Silva" 
+                    value={vistoria.responsavel_unidade || ''} 
+                    onChange={e => handleUpdate('responsavel_unidade', e.target.value)}
+                    style={{ marginBottom: '0.25rem' }}
+                  />
+                </div>
+                <SignatureInput 
+                  label="Assinatura do Morador / Responsável"
+                  helperText="Declaro que acompanhei a vistoria técnica e recebi este laudo."
+                  onSave={b => {
+                    handleUpdate('assinatura_cliente', b);
+                    handleUpdate('assinatura', b);
+                  }} 
+                  initialValue={vistoria.assinatura_cliente || vistoria.assinatura}
+                />
               </div>
+
+              {/* 2. Assinatura do Técnico Responsável Ecowave */}
+              <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginBottom: '1.25rem', border: '1px solid var(--border)' }}>
+                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                  <label style={{ fontWeight: '600' }}>Nome do Técnico Responsável</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Carlos Oliveira" 
+                    value={vistoria.tecnico || ''} 
+                    onChange={e => handleUpdate('tecnico', e.target.value)}
+                    style={{ marginBottom: '0.25rem' }}
+                  />
+                </div>
+                <SignatureInput 
+                  label="Assinatura do Técnico Responsável"
+                  helperText="Atesto a execução técnica de todos os testes e análises descritos neste laudo."
+                  onSave={b => handleUpdate('assinatura_tecnico', b)} 
+                  initialValue={vistoria.assinatura_tecnico}
+                />
+              </div>
+
+              {/* Botões: Visualizar Laudo, Voltar e Salvar */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '1.5rem' }}>
+                <button 
+                  type="button"
+                  onClick={() => handlePreviewPDF(vistoria)} 
+                  className="secondary"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  disabled={isLoadingPreview}
+                >
+                  <Eye size={18} /> {isLoadingPreview ? 'Gerando...' : 'Visualizar Laudo'}
+                </button>
+                <button 
+                  onClick={saveVistoria} 
+                  style={{ backgroundColor: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} 
+                  disabled={!vistoria.parecer_tecnico}
+                >
+                  <Save size={18} /> Finalizar Vistoria
+                </button>
+              </div>
+
+              <button 
+                onClick={() => setStep(2)} 
+                className="secondary outline"
+                style={{ marginTop: '0.75rem' }}
+              >
+                <ChevronLeft size={18} /> Voltar ao Passo Anterior
+              </button>
             </div>
           )}
         </motion.div>

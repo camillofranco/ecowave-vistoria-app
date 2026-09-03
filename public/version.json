@@ -1,13 +1,11 @@
 {
-  "version": "2.6.0",
-  "releaseDate": "01/09/2026",
-  "title": "Atualização Ecowave v2.6.0 - Laudo Técnico Executivo Aperfeiçoado",
+  "version": "2.7.0",
+  "releaseDate": "03/09/2026",
+  "title": "Atualização Ecowave v2.7.0 - Reconfiguração de Equipamento e Séries Padronizados",
   "changelog": [
-    "Eliminação de Abreviações: Nomes de ambientes completos (ex: Banheiro Social, Banheiro Suíte, Número de Série)",
-    "Formatação e Caracteres 100% Limpos: Remoção de emojis/caracteres corrompidos nas tabelas",
-    "Tabelas com Linhas e Bordas Claras: Grade técnica nítida e de fácil leitura",
-    "Adequação de Título: 'Parecer Técnico e Validação da Unidade Vistoriada'",
-    "Assinaturas com Nomes Discriminados: Nome do morador e do técnico impressos abaixo das assinaturas",
-    "Fotos 1:1 Sem Distorção: Enquadramento central 1:1 de alta fidelidade"
+    "Nova Vistoria de Reconfiguração de Equipamento: Fluxo simples com as 3 fotos antes (Medidor, Transmissor, Leitura do Sistema) e as 3 fotos depois",
+    "Número de Série do Medidor: Campo padronizado com letras maiúsculas automáticas em todas as vistorias",
+    "Número de Série do Transmissor: Campo padronizado estritamente numérico em todas as vistorias",
+    "Laudo Técnico Dedicado: Tabela comparativa e anexo fotográfico 1:1 organizado das 6 evidências"
   ]
 }

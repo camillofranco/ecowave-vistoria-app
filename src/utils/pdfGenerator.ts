@@ -99,6 +99,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   doc.line(0, 31, width, 31);
 
   const isAltoConsumo = v.tipo_vistoria === 'Alto Consumo' || v.tipo_vistoria === 'alto_consumo';
+  const isReconfiguracao = v.tipo_vistoria === 'Reconfiguração de Equipamento';
 
   // Título Oficial e Metadados
   doc.setTextColor(...colorPurple);
@@ -107,6 +108,8 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   doc.text(
     isAltoConsumo 
       ? 'RELATÓRIO TÉCNICO DE ALTO CONSUMO' 
+      : isReconfiguracao
+      ? 'RELATÓRIO TÉCNICO DE RECONFIGURAÇÃO'
       : 'RELATÓRIO TÉCNICO DE VISTORIA GERAL', 
     margin, 
     42
@@ -154,8 +157,45 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
 
   let currentY = infoBoxY + infoBoxH + 8;
 
-  // --- SEÇÃO ALTO CONSUMO: TABELAS TÉCNICAS EXECUTIVAS ---
-  if (isAltoConsumo) {
+  // --- SEÇÃO 1: PROCEDIMENTOS TÉCNICOS POR TIPO ---
+  if (isReconfiguracao) {
+    // RECONFIGURAÇÃO DE EQUIPAMENTO
+    doc.setTextColor(...colorPurple);
+    doc.setFontSize(10.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('1. PROCEDIMENTO TÉCNICO DE RECONFIGURAÇÃO E SINCRONISMO', margin, currentY);
+
+    const reconfRows = [
+      [
+        'Antes da Reconfiguração',
+        'Registro fotográfico das condições iniciais do medidor, módulo transmissor e tela de leitura do sistema.',
+        { content: 'REGISTRADO', styles: { textColor: colorGreen, fontStyle: 'bold' as const, halign: 'center' as const } }
+      ],
+      [
+        'Após a Reconfiguração',
+        'Registro fotográfico comprovando a reconfiguração dos parâmetros e sincronismo com a telemetria.',
+        { content: 'CONCLUÍDO', styles: { textColor: colorGreen, fontStyle: 'bold' as const, halign: 'center' as const } }
+      ]
+    ];
+
+    autoTable(doc, {
+      startY: currentY + 3,
+      margin: { left: margin, right: margin },
+      head: [['ETAPA DO PROCEDIMENTO', 'DESCRIÇÃO TÉCNICA DAS EVIDÊNCIAS', 'STATUS']],
+      body: reconfRows,
+      theme: 'grid',
+      headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 8, fontStyle: 'bold', cellPadding: 3 },
+      bodyStyles: { fontSize: 8, cellPadding: 3, textColor: colorDarkGray },
+      styles: { lineColor: colorBorder, lineWidth: 0.5 },
+      columnStyles: {
+        0: { cellWidth: 48, fontStyle: 'bold' },
+        1: { halign: 'left' },
+        2: { cellWidth: 28 }
+      }
+    });
+    currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 7;
+
+  } else if (isAltoConsumo) {
     // TABELA 1: Inspeção de Caixas Acopladas
     const caixasAtivas = (v.caixas_acopladas || []).filter(c => c.status !== 'nao_aplicavel');
     if (caixasAtivas.length > 0) {
@@ -350,62 +390,70 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 8;
   }
 
-  // --- SEÇÃO DE PARÂMETROS TÉCNICOS COM LINHAS CLARAS E ESTRUTURADAS ---
+  // --- SEÇÃO DE IDENTIFICAÇÃO DE EQUIPAMENTOS E PARÂMETROS TÉCNICOS (TODOS OS TIPOS) ---
   const dg = v.dados_gerais || ({} as DadosGerais);
   const statusRows: any[] = [];
 
-  if (isAF && dg.serial_medidor_agua) {
+  if (isAF) {
     statusRows.push([
-      { content: 'STATUS DO MEDIDOR AF', styles: { fontStyle: 'bold' as const } },
-      { content: dg.estado_medidor_agua?.toUpperCase() || 'BOM', styles: { fontStyle: 'bold' as const, textColor: colorGreen, halign: 'center' } },
-      { content: 'NÚMERO DE SÉRIE DO HIDRÔMETRO AF', styles: { fontStyle: 'bold' as const } },
-      { content: dg.serial_medidor_agua || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const, halign: 'center' } }
+      { content: 'HIDRÔMETRO AF', styles: { fontStyle: 'bold' as const, fillColor: colorLightGray } },
+      { content: (dg.serial_medidor_agua || 'NÃO INFORMADO').toUpperCase(), styles: { fontStyle: 'bold' as const, halign: 'center' as const } },
+      { content: 'TRANSMISSOR AF', styles: { fontStyle: 'bold' as const, fillColor: colorLightGray } },
+      { content: dg.serial_transmissor_agua || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const, halign: 'center' as const } }
     ]);
   }
 
-  if (isAQ && dg.serial_medidor_aq) {
+  if (isAQ) {
     statusRows.push([
-      { content: 'STATUS DO MEDIDOR AQ', styles: { fontStyle: 'bold' as const } },
-      { content: dg.estado_medidor_aq?.toUpperCase() || 'BOM', styles: { fontStyle: 'bold' as const, textColor: colorGreen, halign: 'center' } },
-      { content: 'NÚMERO DE SÉRIE DO HIDRÔMETRO AQ', styles: { fontStyle: 'bold' as const } },
-      { content: dg.serial_medidor_aq || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const, halign: 'center' } }
+      { content: 'HIDRÔMETRO AQ', styles: { fontStyle: 'bold' as const, fillColor: colorLightGray } },
+      { content: (dg.serial_medidor_aq || 'NÃO INFORMADO').toUpperCase(), styles: { fontStyle: 'bold' as const, halign: 'center' as const } },
+      { content: 'TRANSMISSOR AQ', styles: { fontStyle: 'bold' as const, fillColor: colorLightGray } },
+      { content: dg.serial_transmissor_aq || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const, halign: 'center' as const } }
     ]);
   }
 
-  if (isGas && dg.serial_medidor_gas) {
+  if (isGas) {
     statusRows.push([
-      { content: 'STATUS DO MEDIDOR DE GÁS', styles: { fontStyle: 'bold' as const } },
-      { content: dg.estado_medidor_gas?.toUpperCase() || 'BOM', styles: { fontStyle: 'bold' as const, textColor: colorGreen, halign: 'center' } },
-      { content: 'NÚMERO DE SÉRIE DO MEDIDOR DE GÁS', styles: { fontStyle: 'bold' as const } },
-      { content: dg.serial_medidor_gas || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const, halign: 'center' } }
+      { content: 'MEDIDOR DE GÁS', styles: { fontStyle: 'bold' as const, fillColor: colorLightGray } },
+      { content: (dg.serial_medidor_gas || 'NÃO INFORMADO').toUpperCase(), styles: { fontStyle: 'bold' as const, halign: 'center' as const } },
+      { content: 'TRANSMISSOR DE GÁS', styles: { fontStyle: 'bold' as const, fillColor: colorLightGray } },
+      { content: dg.serial_transmissor_gas || 'NÃO INFORMADO', styles: { fontStyle: 'bold' as const, halign: 'center' as const } }
     ]);
   }
 
   if (dg.relogio_parado_verificado) {
     statusRows.push([
-      { content: 'TESTE DE ESTANQUEIDADE', styles: { fontStyle: 'bold' as const } },
+      { content: 'TESTE DE ESTANQUEIDADE', styles: { fontStyle: 'bold' as const, fillColor: colorLightGray } },
       { content: 'EM CONFORMIDADE (RELÓGIO TOTALMENTE PARADO)', styles: { fontStyle: 'bold' as const, textColor: colorGreen, colSpan: 3 } }
     ]);
   }
 
   if (statusRows.length > 0) {
+    doc.setTextColor(...colorPurple);
+    doc.setFontSize(10.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('IDENTIFICAÇÃO DE EQUIPAMENTOS E PARÂMETROS', margin, currentY);
+
     autoTable(doc, {
-      startY: currentY + 2,
+      startY: currentY + 3,
       margin: { left: margin, right: margin },
       theme: 'grid',
+      head: [['EQUIPAMENTO / PARÂMETRO', 'NÚMERO DE SÉRIE DO MEDIDOR', 'MÓDULO DE TELEMETRIA', 'NÚMERO DE SÉRIE DO TRANSMISSOR']],
       body: statusRows,
-      styles: { fontSize: 7.5, cellPadding: 2.8, textColor: colorDarkGray, lineColor: colorBorder, lineWidth: 0.5 },
+      headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 7.5, fontStyle: 'bold', halign: 'center', cellPadding: 2.8 },
+      bodyStyles: { fontSize: 8, cellPadding: 2.8, textColor: colorDarkGray },
+      styles: { lineColor: colorBorder, lineWidth: 0.5 },
       columnStyles: {
-        0: { cellWidth: 50, fillColor: colorLightGray },
-        1: { cellWidth: 35 },
-        2: { cellWidth: 55, fillColor: colorLightGray },
-        3: { cellWidth: 34 }
+        0: { cellWidth: 42, fontStyle: 'bold' },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 42, fontStyle: 'bold' },
+        3: { cellWidth: 45 }
       }
     });
     currentY = ((doc as any).lastAutoTable?.finalY || currentY + 20) + 7;
   }
 
-  // --- SEÇÃO 4: PARECER TÉCNICO E ASSINATURAS ---
+  // --- SEÇÃO: PARECER TÉCNICO E ASSINATURAS ---
   const neededSpace = 80;
   if (currentY + neededSpace > height - 18) {
     doc.addPage();
@@ -588,7 +636,29 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     imgCount++;
   };
 
-  // 1. Fotos de Caixas Acopladas (apenas ativas)
+  // 1. Fotos de Reconfiguração de Equipamento (3 Antes e 3 Depois)
+  if (isReconfiguracao && v.reconfiguracao) {
+    if (v.reconfiguracao.imagem_medidor_antes) {
+      await addImageToDoc(v.reconfiguracao.imagem_medidor_antes, 'Medidor (Antes da Reconfiguração)');
+    }
+    if (v.reconfiguracao.imagem_transmissor_antes) {
+      await addImageToDoc(v.reconfiguracao.imagem_transmissor_antes, 'Transmissor (Antes da Reconfiguração)');
+    }
+    if (v.reconfiguracao.imagem_sistema_antes) {
+      await addImageToDoc(v.reconfiguracao.imagem_sistema_antes, 'Leitura do Sistema (Antes da Reconfiguração)');
+    }
+    if (v.reconfiguracao.imagem_medidor_depois) {
+      await addImageToDoc(v.reconfiguracao.imagem_medidor_depois, 'Medidor (Após a Reconfiguração)');
+    }
+    if (v.reconfiguracao.imagem_transmissor_depois) {
+      await addImageToDoc(v.reconfiguracao.imagem_transmissor_depois, 'Transmissor (Após a Reconfiguração)');
+    }
+    if (v.reconfiguracao.imagem_sistema_depois) {
+      await addImageToDoc(v.reconfiguracao.imagem_sistema_depois, 'Leitura do Sistema (Após a Reconfiguração)');
+    }
+  }
+
+  // 2. Fotos de Caixas Acopladas (apenas ativas)
   if (v.caixas_acopladas) {
     for (const c of v.caixas_acopladas) {
       if (c.status !== 'nao_aplicavel' && c.imagem) {
@@ -597,7 +667,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     }
   }
 
-  // 2. Fotos de Aferições do Balde de 10 Litros
+  // 3. Fotos de Aferições do Balde de 10 Litros
   if (v.afericoes_medidores) {
     for (const a of v.afericoes_medidores) {
       if (a.imagem_antes) await addImageToDoc(a.imagem_antes, `Hidrômetro ${a.tipo} - Leitura Inicial (Aferição 10 Litros)`);
@@ -606,7 +676,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     }
   }
 
-  // 3. Fotos de Pontos de Consumo (apenas ativos)
+  // 4. Fotos de Pontos de Consumo (apenas ativos)
   if (v.pontos_consumo_itens) {
     for (const p of v.pontos_consumo_itens) {
       if (!p.nao_se_aplica && p.imagem) {
@@ -622,7 +692,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     }
   }
 
-  // 4. Fotos de Testes Gerais (se houver)
+  // 5. Fotos de Testes Gerais (se houver)
   if (v.testes) {
     for (let i = 0; i < v.testes.length; i++) {
       const t = v.testes[i];
@@ -632,13 +702,16 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     }
   }
 
-  // 5. Fotos dos Medidores e Seriais
+  // 6. Fotos dos Medidores e Seriais
   if (dg.imagem_medidor_agua) await addImageToDoc(dg.imagem_medidor_agua, 'Medidor AF (Água Fria)');
   if (dg.imagem_serial_agua) await addImageToDoc(dg.imagem_serial_agua, 'Número de Série do Hidrômetro AF');
+  if (dg.imagem_transmissor_agua) await addImageToDoc(dg.imagem_transmissor_agua, 'Módulo Transmissor AF');
   if (dg.imagem_medidor_aq) await addImageToDoc(dg.imagem_medidor_aq, 'Medidor AQ (Água Quente)');
   if (dg.imagem_serial_aq) await addImageToDoc(dg.imagem_serial_aq, 'Número de Série do Hidrômetro AQ');
+  if (dg.imagem_transmissor_aq) await addImageToDoc(dg.imagem_transmissor_aq, 'Módulo Transmissor AQ');
   if (dg.imagem_medidor_gas) await addImageToDoc(dg.imagem_medidor_gas, 'Medidor de Gás');
   if (dg.imagem_serial_gas) await addImageToDoc(dg.imagem_serial_gas, 'Número de Série do Medidor de Gás');
+  if (dg.imagem_transmissor_gas) await addImageToDoc(dg.imagem_transmissor_gas, 'Módulo Transmissor Gás');
 
   const totalPages = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {

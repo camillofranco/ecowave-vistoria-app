@@ -81,14 +81,23 @@ export interface DadosGerais {
   imagem_medidor_agua?: string;
   serial_medidor_agua?: string;
   imagem_serial_agua?: string;
+  serial_transmissor_agua?: string;
+  imagem_transmissor_agua?: string;
+
   estado_medidor_aq?: string; // Medidor AQ
   imagem_medidor_aq?: string;
   serial_medidor_aq?: string;
   imagem_serial_aq?: string;
+  serial_transmissor_aq?: string;
+  imagem_transmissor_aq?: string;
+
   estado_medidor_gas?: string;
   imagem_medidor_gas?: string;
   serial_medidor_gas?: string;
   imagem_serial_gas?: string;
+  serial_transmissor_gas?: string;
+  imagem_transmissor_gas?: string;
+
   relogio_parado_verificado: boolean;
   video_relogio_parado?: string;
   verificacoes_internas: VerificacaoInterna[];
@@ -100,6 +109,20 @@ export interface DadosGerais {
   temperatura_agua_quente?: string;
   temperatura_agua_fria?: string;
   pressao_agua?: string;
+}
+
+export interface ReconfiguracaoEquipamento {
+  // Evidências Antes da Reconfiguração
+  imagem_medidor_antes?: string;
+  imagem_transmissor_antes?: string;
+  imagem_sistema_antes?: string;
+
+  // Evidências Após a Reconfiguração
+  imagem_medidor_depois?: string;
+  imagem_transmissor_depois?: string;
+  imagem_sistema_depois?: string;
+
+  observacao?: string;
 }
 
 export interface Vistoria {
@@ -118,6 +141,9 @@ export interface Vistoria {
   caixas_acopladas?: CaixaAcopladaItem[];
   afericoes_medidores?: AfericaoMedidorItem[];
   pontos_consumo_itens?: PontoConsumoItem[];
+
+  // Módulo especializado de Reconfiguração
+  reconfiguracao?: ReconfiguracaoEquipamento;
 
   testes: TesteLeitura[];
   ponto_consumo?: PontoConsumo;
