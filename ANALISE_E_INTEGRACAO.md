@@ -1,75 +1,50 @@
-# Análise do app e integração com o portal
+# Vistorias e auditorias no Ecowave
 
-## Estado verificado
+## Decisões do projeto
 
-- A versão React/Capacitor (`ecowave-vistoria-app`) grava vistorias apenas no IndexedDB local e compartilha arquivos PDF pelo sistema operacional.
-- A versão antiga (`App_Vistorias_Ecowave`) é um PWA separado, sem a estrutura de histórico da versão React.
-- O Portal Ecowave mostra relatórios por condomínio, bloco e unidade. A importação atual de PDFs e imagens é orientada a competências mensais; o próprio portal exige pré-validação e confirmação.
-- O código do portal está em um repositório privado separado (`ecowave-portal-reports`). Sua estrutura foi examinada no GitHub, mas não há checkout local autenticado nesta tarefa. Não existe fluxo confirmado para envio de vistoria individual.
+- O aplicativo em uso é o React/Android (`ecowave-vistoria-app`). O PWA antigo é apenas referência.
+- Vistorias ficam separadas dos relatórios mensais do portal. A tabela `reports` tem unicidade por unidade e competência e não atende múltiplas vistorias no mesmo mês.
+- O vínculo é feito pelo ID da unidade existente no portal; condomínio, bloco e número são conferidos antes do envio e a relação condomínio/unidade é validada no banco.
+- A auditoria é um registro técnico de campo até que uma engenheira ambiental autorizada revise as evidências no portal. Consulta manual do CREA é registrada pelo administrador ao habilitar a revisora; não equivale à aprovação da auditoria.
+- Após aprovação, a administração pode publicar a auditoria **somente para moradores com vínculo ativo à unidade**. O síndico não recebe a auditoria. Administradores, a revisora e o técnico responsável conservam acesso operacional ao registro.
 
-## Onde implantar a integração no portal existente
+## Entrega implementada
 
-O portal usa TanStack Start/React e Supabase. As rotas ficam em `src/routes/_authenticated/`; os componentes compartilhados, em `src/components/`; as regras de banco e storage, em `supabase/migrations/`. O arquivo `src/routeTree.gen.ts` é gerado automaticamente e não deve ser editado.
+### Aplicativo React/Android
 
-| Necessidade | Local do portal | Implantação proposta |
-| --- | --- | --- |
-| Vínculo inequívoco com condomínio, bloco e unidade | `public.condominiums`, `public.units` e `src/components/location-search.tsx` | Selecionar a unidade existente pelo UUID `units.id`. O bloco já é texto em `units.block`; validar no servidor a relação com o condomínio. |
-| Persistência das vistorias e auditorias | Nova migração em `supabase/migrations/` | Criar `inspections` com `inspection_uid` único, `unit_id`, tipo, data, técnico, conteúdo estruturado versionado e status. Permitir múltiplas vistorias por unidade e mês. |
-| Evidências e PDF | Nova migração de storage e tabela `inspection_artifacts` | Bucket privado próprio, caminhos por ID de vistoria, tamanho/hash/MIME, políticas RLS vinculadas à vistoria. Links temporários para leitura. |
-| Envio autenticado pelo app React/Android | Nova função de servidor em `src/lib/inspections.functions.ts` ou rota de API TanStack Start | Validar sessão, permissão do técnico, `unit_id`, tipo e tamanho dos arquivos, integridade do PDF e idempotência por `inspection_uid`. Devolver recibo persistido. |
-| Revisão profissional | `supabase/migrations/` e nova rota `src/routes/_authenticated/admin.auditorias.tsx` | Cadastro de revisoras autorizadas, fila de auditorias, registro imutável de aprovação/devolução, CREA/UF, ART quando aplicável, data e versão aprovada. Somente a revisão autenticada muda o status para `validada`. |
-| Consulta administrativa | Nova rota `src/routes/_authenticated/admin.vistorias.tsx`, `src/components/admin-shell.tsx` | Usar os filtros e a árvore já existentes. Exibir status, modalidade, data, técnico, unidade e acesso às evidências; menu próprio. |
-| Entrega ao condomínio e morador | `src/routes/_authenticated/sindico.tsx`, `src/routes/_authenticated/meus-relatorios.tsx` ou novas rotas irmãs | Mostrar apenas documentos publicados e permitidos pelo vínculo do síndico ao condomínio ou do morador à unidade. Registrar publicação e eventual notificação sem afirmar entrega por e-mail antes de confirmação. |
-| Autorização e tipos | `src/integrations/supabase/types.ts`, `src/lib/admin-guard.ts`, `src/hooks/use-session.ts` | Regenerar tipos após migração. Separar papel de técnico/revisora das contas de cliente; conferir permissões no banco e no servidor, não apenas na interface. |
+- Formulário de auditoria com objetivo, escopo, método, período, documentos, limitações, oito critérios, evidências, criticidade, ações corretivas e conclusão.
+- PDF de registro de campo com matriz de constatações, plano de ação e fotos. O estado da validação profissional é consultado no portal.
+- Conta do portal no app, seleção de condomínio, bloco e unidade, upload de PDF privado, hash SHA-256, envio estruturado e recibo persistido localmente.
+- Consulta do estado remoto, correção e reenvio de auditoria devolvida. Vistorias já enviadas ficam bloqueadas para edição, exceto auditorias devolvidas.
+- Correções do formulário e PDF comuns, prévia/compartilhamento e assinatura. O compartilhamento manual continua disponível.
 
-### Por que a tabela mensal não serve
+### Portal
 
-`reports` guarda `unit_id`, `condominium_id`, `competence`, `storage_path` e impõe `unique (unit_id, competence)`. A importação de `admin.importar-relatorios.tsx` e a lista `ReportList` trabalham com competências mensais. Usar essa tabela para vistorias impediria dois documentos para a mesma unidade no mesmo mês e misturaria medição com auditoria. O bucket `reports` também tem políticas atreladas a linhas dessa tabela. É necessário criar tabela e políticas próprias antes de ativar o envio no app.
+- Migração `supabase/migrations/20260928000000_inspections_audits.sql`: equipe autorizada, tabela `inspections`, eventos de revisão, storage privado e políticas de acesso. Nenhuma tabela mensal é alterada.
+- Administração em `/admin/vistorias`: lista documentos, habilita técnicos e revisoras e publica para o morador. A habilitação da revisora exige registro da conferência manual do CREA.
+- Revisão em `/auditorias`: a revisora autenticada abre o PDF, registra justificativa e eventual ART, aprova ou devolve. A autora da auditoria não pode revisar a própria auditoria.
+- Morador em `/minhas-vistorias`: consulta PDFs publicados da própria unidade e, nas auditorias, nome, CREA, data, parecer e ART informada pela revisora.
+- Documentos privados são acessados por links temporários. A auditoria não pode ser publicada antes da aprovação nem para o síndico.
 
-### Sequência de implantação
+## Verificações feitas
 
-1. Criar migração aditiva para `inspections`, `inspection_artifacts`, `audit_review_events` e permissões de técnico/revisora, com RLS para administração, responsável profissional, síndico e morador. Preservar as tabelas mensais.
-2. Criar operação de envio no portal com recibo e rejeição de duplicatas por `inspection_uid`; manter auditorias como `pendente_revisao` até aprovação profissional autenticada.
-3. Criar fila de revisão e telas administrativas para listar, corrigir vínculo e publicar; depois incluir leitura nas áreas do síndico e do morador.
-4. Ligar o app React/Android à seleção de unidade e ao envio autenticado; manter fila offline, reenvio seguro e comprovante de recebimento.
-5. Testar autorização cruzada entre condomínios, dupla submissão, falha de rede, troca de unidade, devolução/reaprovação e acesso a PDF privado.
+- Build de produção e TypeScript do app: sem erros.
+- Build de produção e TypeScript do portal: sem erros.
+- Estrutura real do banco Supabase conferida em modo leitura: tabelas e colunas exigidas estão presentes; o controle administrativo usa `private.has_role`.
+- Dois PRs draft abertos, um por repositório. Nenhuma migração foi aplicada ao banco e nenhuma versão foi publicada.
 
-**Limite atual:** a inspeção do repositório privado foi somente leitura pela interface do GitHub. Nenhuma migração, tela ou endpoint do portal foi publicado; o app também continua sem envio direto até que o backend exista e seja testado.
+## Ordem de ativação e testes finais
 
-## Melhorias feitas na versão React
+1. Aplicar a migração do portal em ambiente controlado e atualizar os tipos gerados do Supabase.
+2. Validar com contas reais de administrador, técnico, revisora e morador, incluindo uma conta de síndico sem acesso à auditoria.
+3. Testar envio, recibo, duplicação, devolução, reenvio, aprovação, publicação e leitura do PDF pela unidade correta.
+4. Publicar o portal e depois a nova versão React/Android. Os dois componentes precisam estar ativos para o envio funcionar.
 
-1. Criada modalidade **Auditoria Ambiental** com planejamento, oito critérios, constatações, fotos, criticidade, ações corretivas, responsáveis, prazos, conclusão e revisão declarada por engenheira ambiental.
-2. Adicionado PDF próprio de auditoria com matriz de achados, plano de ação, dados da revisora e anexos fotográficos. O documento deixa explícito que uma assinatura no aparelho não comprova habilitação profissional.
-3. Corrigido o estado inicial de caixas acopladas e aferições: antes apareciam conformes mesmo sem teste. Leituras inválidas agora não recebem classificação de conformidade.
-4. Corrigida a prévia/compartilhamento do PDF no navegador. O acesso ao sistema de arquivos e ao compartilhamento do Capacitor é feito somente no Android/iOS.
-5. Removido o envio paralelo e silencioso para um Google Apps Script por `no-cors`, que não permitia verificar a entrega. Removido o botão de WhatsApp que dizia haver anexo sem anexá-lo.
-6. O histórico agora permite retomar e editar uma vistoria. A identificação de condomínio, bloco e unidade é exigida no salvamento.
-7. O PDF comum passa a identificar corretamente vistorias de vazamento e troca e não afirma que um parecer ausente foi concluído.
-8. Cada nova vistoria recebe um identificador global estável no registro e no PDF, preparando o envio sem duplicação ao portal.
+## Melhorias posteriores recomendadas
 
-## Pendências técnicas que exigem alinhamento com a Ecowave
+- Rever tecnicamente as faixas de vazão e tolerâncias existentes antes de usá-las em laudos oficiais.
+- Dividir o fluxo comum de vazamento e troca em checklists específicos.
+- Adicionar fila de sincronização automática e backup autenticado do material ainda local.
+- Reduzir o tamanho do pacote JavaScript e consolidar trechos duplicados no PDF comum.
 
-| Prioridade | Item | Motivo |
-| --- | --- | --- |
-| Alta | Publicação e vínculo direto no portal | Requer endpoint autenticado e validação da unidade no servidor. Não há API confirmada para vistoria individual. |
-| Alta | Validação oficial da engenheira | O portal precisa identificar a revisora, conferir suas permissões e manter trilha de aprovação. Uma assinatura desenhada localmente não autentica a pessoa. |
-| Alta | Revisão dos critérios técnicos | Faixas de vazão e tolerância de aferição existentes no app são fixas no código. A engenheira deve aprovar método, critérios, tolerâncias e redação antes do uso como laudo oficial. |
-| Média | Persistência e sincronização | O IndexedDB pode ser perdido; para equipes, é necessário backup autenticado, fila offline e confirmação de sincronização. |
-| Média | Fluxos de vazamento e troca | As modalidades compartilham etapas genéricas. Convém criar checklists específicos de segurança, equipamento removido/instalado e evidências. |
-| Média | PDF comum | Há trechos de apresentação duplicados por modalidade; a manutenção deve ser consolidada para reduzir divergências. |
-
-## Contrato recomendado para envio ao portal
-
-1. O app autentica o técnico por um fluxo oficial do portal; nenhuma chave privilegiada fica no aplicativo.
-2. O app consulta condomínios e unidades autorizados. O usuário escolhe condomínio, bloco e unidade; o servidor devolve um `unit_id` inequívoco. Nomes digitados não devem ser a chave de associação.
-3. Ao enviar, o app inclui um identificador único da vistoria, tipo, data, dados estruturados, PDF e hash SHA-256 do arquivo. O servidor confere autorização e se o `unit_id` pertence ao condomínio/bloco informado.
-4. O servidor grava o PDF em storage privado, cria registro de **vistoria** separado de relatório de consumo mensal, devolve ID e status, e rejeita duplicação pelo identificador único.
-5. Auditorias entram como **pendentes de revisão**. Uma conta com papel de engenheira revisora confere evidências, registra CREA/UF e ART quando aplicável, aprova ou devolve para correção. Somente o servidor pode marcar **validada** e liberá-la ao condomínio/morador.
-6. O app mantém estados `local`, `aguardando_envio`, `recebido`, `em_revisao`, `validado` ou `devolvido`, com recibo do portal. Falhas de rede preservam a vistoria para reenvio idempotente.
-
-O app não marca um arquivo como entregue ao portal sem o recibo do servidor. É necessário acesso ao código/API do portal e definição de quem pode ver cada tipo de relatório antes de ligar o botão de envio direto.
-
-## Referências profissionais
-
-- [Consulta profissional do Confea](https://consultaprofissional.confea.org.br/)
-- [Anotação de Responsabilidade Técnica — Confea](https://www.confea.org.br/servicos-prestados/anotacao-de-responsabilidade-tecnica-art)
+ATENÇÃO: a compilação e a inspeção de esquema não substituem o teste ponta a ponta com usuários reais nem a conferência profissional do conteúdo da auditoria.
