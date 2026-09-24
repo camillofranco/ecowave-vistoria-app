@@ -1,25 +1,27 @@
 # Ecowave Vistorias
 
-Aplicativo React/Capacitor para coleta local de vistorias de água e gás, com geração de PDF e histórico no aparelho.
+Aplicativo React/Capacitor para vistorias de água e gás, auditoria ambiental, PDF e histórico local.
 
 ## Uso
 
-1. Preencha condomínio, bloco, unidade e técnico.
-2. Selecione a modalidade. Em **Auditoria Ambiental**, registre objetivo, escopo, método, período, documentos e limitações.
-3. Classifique os oito critérios. Para cada não conformidade, registre constatação, criticidade e ação corretiva. Anexe evidências fotográficas quando disponíveis.
-4. Redija a conclusão. O relatório pode ser salvo como registro local e exportado para revisão.
-5. A engenheira ambiental deve revisar os dados e, quando adequado, informar nome, CREA/UF, ART e assinar. A assinatura inserida no aparelho é uma declaração; a verificação de habilitação e a liberação oficial dependem do portal.
+1. Registre condomínio, bloco, unidade, técnico e modalidade.
+2. Na Auditoria Ambiental, documente objetivo, escopo, método, período, fontes, limitações, oito critérios, evidências, ações corretivas e conclusão.
+3. Salve a vistoria no aparelho. No histórico, entre com a conta da equipe no Portal Ecowave, escolha a unidade cadastrada e confirme o envio. O app apresenta um recibo após a gravação no portal.
+4. Uma engenheira ambiental habilitada pela administração revisa a auditoria no portal, aprova ou devolve com justificativa. A administração publica a auditoria aprovada somente para moradores vinculados à unidade.
+5. O morador consulta o PDF e os dados da aprovação em **Minhas vistorias** no portal.
 
-O app funciona com dados armazenados no navegador/aparelho por IndexedDB. Limpar os dados do navegador ou desinstalar o app pode apagar vistorias que ainda não tenham sido exportadas. O botão **Enviar** abre o compartilhamento do PDF ou faz download no navegador; ele não confirma importação no Portal Ecowave.
+O PDF produzido no aparelho é um registro de campo; a validação profissional aparece no portal. O compartilhamento manual do PDF continua disponível.
+
+Vistorias ainda não enviadas ficam apenas no IndexedDB do aparelho. Limpar dados do navegador ou desinstalar o app pode apagá-las.
 
 ## Desenvolvimento
 
 ```sh
-npm ci
-npm run build
-npm run dev
+pnpm install
+pnpm run build
+pnpm run dev
 ```
 
-## Integração com o Portal Ecowave
+## Integração
 
-O portal atualmente importa PDFs por competência mensal e referência de unidade. Esse fluxo não deve receber automaticamente um relatório de vistoria ou auditoria, porque tem finalidade e validações diferentes. Consulte [ANALISE_E_INTEGRACAO.md](./ANALISE_E_INTEGRACAO.md) para o contrato proposto de envio por condomínio, bloco e unidade.
+O portal armazena vistorias em tabelas e bucket próprios, separados dos relatórios mensais. A migração do portal deve ser aplicada antes de habilitar o envio em produção. Consulte [ANALISE_E_INTEGRACAO.md](./ANALISE_E_INTEGRACAO.md).
