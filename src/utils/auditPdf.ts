@@ -28,10 +28,8 @@ export async function generateAuditPDF(v: Vistoria): Promise<string> {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
   doc.text('AUDITORIA AMBIENTAL DA MEDIÇÃO', margin, y); y += 8;
   doc.setFontSize(9); doc.setTextColor(166, 62, 42);
-  const reviewDeclared = Boolean(a.engenheira_nome?.trim() && a.engenheira_crea?.trim() && a.assinatura_engenheira && a.revisado_em);
-  const statusLines = doc.splitTextToSize(reviewDeclared
-    ? 'REVISÃO PROFISSIONAL DECLARADA — IDENTIDADE E HABILITAÇÃO A CONFERIR'
-    : 'RASCUNHO — AGUARDANDO REVISÃO DA ENGENHEIRA AMBIENTAL', contentWidth);
+  const statusLines = doc.splitTextToSize(
+    'REGISTRO DE CAMPO — CONSULTE A VALIDAÇÃO PROFISSIONAL NO PORTAL ECOWAVE', contentWidth);
   doc.text(statusLines, margin, y);
   doc.setTextColor(35, 45, 55); y += statusLines.length * 4 + 5;
   paragraph('Condomínio', v.condominio);
@@ -63,19 +61,10 @@ export async function generateAuditPDF(v: Vistoria): Promise<string> {
     paragraph('Criticidade / ação', `${item.criticidade || '-'} / ${item.acao_corretiva || '-'}`);
     paragraph('Responsável / prazo', `${item.responsavel_acao || 'A definir'} / ${item.prazo_acao || 'A definir'}`);
   });
-  section('4. Conclusão e revisão');
+  section('4. Conclusão do registro de campo');
   paragraph('Conclusão', a.conclusao);
-  paragraph('Engenheira revisora', a.engenheira_nome || 'Revisão pendente');
-  paragraph('CREA / UF', a.engenheira_crea || 'Não informado');
-  paragraph('ART informada', a.art_numero || 'Não informada');
-  paragraph('Data da assinatura', a.revisado_em ? new Date(a.revisado_em).toLocaleString('pt-BR') : 'Não assinada');
-  if (a.assinatura_engenheira) {
-    ensure(30);
-    try { doc.addImage(a.assinatura_engenheira, 'PNG', margin, y, 70, 22); y += 26; }
-    catch { paragraph('Assinatura', 'Imagem de assinatura não disponível'); }
-  }
   ensure(18); doc.setFontSize(8); doc.setTextColor(120);
-  doc.text(doc.splitTextToSize('A assinatura inserida neste aparelho não comprova, por si só, identidade, habilitação profissional ou registro da ART. A publicação como auditoria validada requer conferência no fluxo oficial da Ecowave.', contentWidth), margin, y);
+  doc.text(doc.splitTextToSize('A aprovação da engenheira, com registro CREA, justificativa e eventual ART, é registrada no Portal Ecowave e deve ser consultada na página da unidade.', contentWidth), margin, y);
 
   for (const item of a.itens.filter(entry => entry.evidencia)) {
     doc.addPage();

@@ -1,5 +1,4 @@
 import CameraInput from './CameraInput';
-import SignatureInput from './SignatureInput';
 import type { Auditoria, AuditItem } from '../db/database';
 
 export const AUDIT_CRITERIA = [
@@ -31,20 +30,13 @@ export const auditReadyForReview = (audit?: Auditoria): boolean => Boolean(
   )
 );
 
-export const auditHasDeclaredReview = (audit?: Auditoria): boolean => Boolean(
-  auditReadyForReview(audit) && audit?.engenheira_nome?.trim() &&
-  audit.engenheira_crea?.trim() && audit.assinatura_engenheira && audit.revisado_em
-);
-
 type Props = { value: Auditoria; onChange: (audit: Auditoria) => void };
 
 export default function AuditForm({ value, onChange }: Props) {
-  const update = (field: keyof Auditoria, content: string) => onChange({
-    ...value, [field]: content, assinatura_engenheira: undefined, revisado_em: undefined
-  });
+  const update = (field: keyof Auditoria, content: string) => onChange({ ...value, [field]: content });
   const updateItem = (index: number, patch: Partial<AuditItem>) => {
     const itens = value.itens.map((item, i) => i === index ? { ...item, ...patch } : item);
-    onChange({ ...value, itens, assinatura_engenheira: undefined, revisado_em: undefined });
+    onChange({ ...value, itens });
   };
   return <>
     <div className="card">
@@ -75,13 +67,9 @@ export default function AuditForm({ value, onChange }: Props) {
       </div>)}
       <div className="form-group"><label>Conclusão fundamentada</label><textarea value={value.conclusao} onChange={e => update('conclusao', e.target.value)} placeholder="Sintetize achados, incertezas e encaminhamentos" /></div>
     </div>
-    <div className="card">
-      <h2>Revisão da engenheira ambiental</h2>
-      <p>A assinatura registra uma declaração no aparelho. A conferência da identidade profissional e da ART depende do fluxo oficial da Ecowave.</p>
-      <div className="form-group"><label>Nome completo da engenheira</label><input value={value.engenheira_nome || ''} onChange={e => update('engenheira_nome', e.target.value)} /></div>
-      <div className="grid-2"><div className="form-group"><label>CREA / UF</label><input value={value.engenheira_crea || ''} onChange={e => update('engenheira_crea', e.target.value)} /></div><div className="form-group"><label>Número da ART, quando aplicável</label><input value={value.art_numero || ''} onChange={e => update('art_numero', e.target.value)} /></div></div>
-      <SignatureInput label="Assinatura da engenheira revisora" helperText="Declaro que revisei os registros, evidências e conclusão apresentados." initialValue={value.assinatura_engenheira} onSave={signature => onChange({ ...value, assinatura_engenheira: signature, revisado_em: new Date().toISOString() })} />
-      <p><strong>Status:</strong> {auditHasDeclaredReview(value) ? 'Revisão declarada; identidade profissional pendente de conferência' : auditReadyForReview(value) ? 'Pronta para revisão' : 'Coleta incompleta'}</p>
+    <div className="card"><h2>Revisão profissional</h2>
+      <p>Após o envio, uma engenheira habilitada analisará as evidências no Portal Ecowave. A validação ficará registrada no portal e será exibida ao morador após a publicação.</p>
+      <p><strong>Status:</strong> {auditReadyForReview(value) ? 'Pronta para revisão' : 'Coleta incompleta'}</p>
     </div>
   </>;
 }
