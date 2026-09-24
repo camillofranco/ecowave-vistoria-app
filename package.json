@@ -20,6 +20,7 @@
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/share": "^8.0.1",
+    "@supabase/supabase-js": "^2.117.1",
     "date-fns": "^4.1.0",
     "dexie": "^4.4.2",
     "framer-motion": "^12.38.0",

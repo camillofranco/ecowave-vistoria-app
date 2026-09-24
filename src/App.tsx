@@ -18,7 +18,6 @@ import {
   ChevronRight, 
   ChevronLeft, 
   Save,
-  MessageSquare, 
   ArrowLeft,
   CheckCircle2,
   AlertTriangle,
@@ -30,7 +29,13 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { generatePDF } from './utils/pdfGenerator';
+import { generateAuditPDF } from './utils/auditPdf';
+import AuditForm, { initialAudit, auditReadyForReview } from './components/AuditForm';
+import { PortalAccount, PortalSend } from './components/PortalIntegration';
+import type { User } from '@supabase/supabase-js';
+import { portalClient } from './services/portal';
 import { format } from 'date-fns';
+import { Capacitor } from '@capacitor/core';
 import logoImg from './assets/logo.png';
 
 export const TIPOS_VISTORIA = [
@@ -38,7 +43,8 @@ export const TIPOS_VISTORIA = [
   'Reconfiguração de Equipamento',
   'Geral',
   'Troca de Equipamento',
-  'Vazamento'
+  'Vazamento',
+  'Auditoria Ambiental'
 ] as const;
 
 export const SISTEMAS_UTILIDADE = [
@@ -98,8 +104,8 @@ export const getQualificacaoVazao = (categoria: CategoriaPonto, vazao: number) =
 };
 
 const DEFAULT_CAIXAS_ACOPLADAS: CaixaAcopladaItem[] = [
-  { id: '1', local: 'Banheiro Social', status: 'ok' },
-  { id: '2', local: 'Banheiro Suíte 1', status: 'ok' },
+  { id: '1', local: 'Banheiro Social', status: 'nao_verificado' },
+  { id: '2', local: 'Banheiro Suíte 1', status: 'nao_verificado' },
   { id: '3', local: 'Lavabo', status: 'nao_aplicavel' }
 ];
 
@@ -111,7 +117,7 @@ const DEFAULT_AFERICAO_AF: AfericaoMedidorItem = {
   volume_balde_litros: 10,
   litros_medidos_hidrometro: 0,
   desvio_percentual: 0,
-  status: 'conforme'
+  status: 'pendente'
 };
 
 const DEFAULT_AFERICAO_AQ: AfericaoMedidorItem = {
@@ -122,7 +128,7 @@ const DEFAULT_AFERICAO_AQ: AfericaoMedidorItem = {
   volume_balde_litros: 10,
   litros_medidos_hidrometro: 0,
   desvio_percentual: 0,
-  status: 'conforme'
+  status: 'pendente'
 };
 
 const DEFAULT_PONTOS_CONSUMO: PontoConsumoItem[] = [
@@ -155,17 +161,54 @@ const INITIAL_VISTORIA: Partial<Vistoria> = {
   parecer_tecnico: ''
 };
 
+const newVistoria = (): Partial<Vistoria> => ({
+  ...INITIAL_VISTORIA,
+  inspection_uid: crypto.randomUUID(),
+  condominio: '', bloco: '', unidade: '', tecnico: '', responsavel_unidade: '',
+  data: format(new Date(), 'yyyy-MM-dd'),
+  hora: format(new Date(), 'HH:mm'),
+  caixas_acopladas: DEFAULT_CAIXAS_ACOPLADAS.map(item => ({ ...item })),
+  afericoes_medidores: [{ ...DEFAULT_AFERICAO_AF }],
+  pontos_consumo_itens: DEFAULT_PONTOS_CONSUMO.map(item => ({ ...item })),
+  testes: INITIAL_VISTORIA.testes?.map(item => ({ ...item, imagens: {} })),
+  dados_gerais: { sistema_aquecimento: false, relogio_parado_verificado: false, verificacoes_internas: [] }
+});
+
 export default function App() {
   const [step, setStep] = useState(0);
-  const [vistoria, setVistoria] = useState<Partial<Vistoria>>(INITIAL_VISTORIA);
+  const [vistoria, setVistoria] = useState<Partial<Vistoria>>(newVistoria);
   const [vistoriasSalvas, setVistoriasSalvas] = useState<Vistoria[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [portalUser, setPortalUser] = useState<User | null>(null);
 
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   useEffect(() => {
     loadHistory();
   }, []);
+
+  useEffect(() => {
+    if (!showHistory || !portalUser) return;
+    const linked = vistoriasSalvas.filter(v => v.id && v.portal_inspection_id);
+    if (linked.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await portalClient().from('inspections')
+        .select('id,status').in('id', linked.map(v => v.portal_inspection_id!));
+      if (cancelled || error || !data) return;
+      const byId = new Map(data.map(row => [row.id, row.status]));
+      let changed = false;
+      for (const v of linked) {
+        const remote = byId.get(v.portal_inspection_id!);
+        if (remote && remote !== v.portal_status) {
+          await db.vistorias.put({ ...v, portal_status: remote as Vistoria['portal_status'] });
+          changed = true;
+        }
+      }
+      if (changed && !cancelled) await loadHistory();
+    })();
+    return () => { cancelled = true; };
+  }, [showHistory, portalUser, vistoriasSalvas]);
 
   const loadHistory = async () => {
     const all = await db.vistorias.reverse().toArray();
@@ -199,7 +242,7 @@ export default function App() {
     list.push({
       id: String(Date.now()),
       local: `Suíte ${count - 1 > 1 ? count - 1 : 2}`,
-      status: 'ok'
+      status: 'nao_verificado'
     });
     handleUpdate('caixas_acopladas', list);
   };
@@ -226,9 +269,9 @@ export default function App() {
 
     const antes = parseFloat(String(antesStr || '').replace(',', '.'));
     const depois = parseFloat(String(depoisStr || '').replace(',', '.'));
-    const balde = !isNaN(baldeVal) && baldeVal > 0 ? baldeVal : 10;
+    const balde = baldeVal;
 
-    if (!isNaN(antes) && !isNaN(depois)) {
+    if (Number.isFinite(antes) && Number.isFinite(depois) && Number.isFinite(balde) && balde > 0 && depois >= antes) {
       const diffM3 = parseFloat((depois - antes).toFixed(4));
       const litrosMedidos = parseFloat((diffM3 * 1000).toFixed(2));
       const desvio = parseFloat((((litrosMedidos - balde) / balde) * 100).toFixed(1));
@@ -237,6 +280,11 @@ export default function App() {
       item.litros_medidos_hidrometro = litrosMedidos;
       item.desvio_percentual = desvio;
       item.status = Math.abs(desvio) <= 5 ? 'conforme' : 'divergente';
+    } else {
+      item.diferenca_m3 = 0;
+      item.litros_medidos_hidrometro = 0;
+      item.desvio_percentual = 0;
+      item.status = antesStr && depoisStr ? 'invalido' : 'pendente';
     }
 
     list[itemIdx] = item;
@@ -319,16 +367,26 @@ export default function App() {
     });
   };
 
-  const saveVistoria = async () => {
+  const saveVistoria = async (allowDraft = false) => {
     try {
+      if (!vistoria.condominio?.trim() || !vistoria.bloco?.trim() || !vistoria.unidade?.trim()) {
+        alert('Informe condomínio, bloco e unidade antes de salvar.'); return;
+      }
+      if (vistoria.tipo_vistoria === 'Auditoria Ambiental' && !allowDraft && !vistoria.tecnico?.trim()) {
+        alert('Informe o técnico responsável pela coleta da auditoria.'); return;
+      }
+      if (vistoria.tipo_vistoria === 'Auditoria Ambiental' && !allowDraft && !auditReadyForReview(vistoria.auditoria)) {
+        alert('Complete o planejamento, todos os critérios e a conclusão da auditoria.'); return;
+      }
       const dataToSave = {
         ...vistoria,
-        createdAt: Date.now()
+        inspection_uid: vistoria.inspection_uid || crypto.randomUUID(),
+        createdAt: vistoria.createdAt || Date.now()
       } as Vistoria;
       
-      const id = await db.vistorias.put(dataToSave);
-      alert('Vistoria salva localmente com sucesso!');
-      setVistoria({ ...INITIAL_VISTORIA, id });
+      await db.vistorias.put(dataToSave);
+      alert(allowDraft ? 'Rascunho salvo no aparelho.' : 'Vistoria salva localmente com sucesso!');
+      setVistoria(newVistoria());
       setStep(0);
       loadHistory();
     } catch (err: any) {
@@ -337,53 +395,23 @@ export default function App() {
     }
   };
 
-  const syncToCloud = async (fileName: string, base64: string, mimeType: string) => {
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx65pLFtsRfnbdhtkX_oLYtt3HGEgM41zUo7c-k3Fs25RCKcn2qgeoT28FsXAdn8nOf/exec';
-    try {
-      await fetch(SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        body: JSON.stringify({
-          fileName,
-          base64: base64.includes(',') ? base64.split(',')[1] : base64,
-          mimeType
-        })
-      });
-      return true;
-    } catch (err) {
-      console.error('Erro no backup cloud:', err);
-      return false;
-    }
-  };
-
   // Função para VISUALIZAR o Relatório em PDF com o leitor nativo do celular
   const handlePreviewPDF = async (v: Partial<Vistoria>) => {
     try {
       setIsLoadingPreview(true);
-      const { Filesystem, Directory } = await import('@capacitor/filesystem');
-      const { Share } = await import('@capacitor/share');
 
-      const base64Data = await generatePDF(v as Vistoria, logoImg);
+      const base64Data = v.tipo_vistoria === 'Auditoria Ambiental' ? await generateAuditPDF(v as Vistoria) : await generatePDF(v as Vistoria, logoImg);
       const safeCondoName = (v.condominio || 'Vistoria').replace(/[^a-z0-9]/gi, '_').toLowerCase();
       const pdfFileName = `Laudo_${safeCondoName}_${v.unidade || 'Unidade'}.pdf`;
 
-      let pdfFileUri = '';
-      try {
-        const savedPdf = await Filesystem.writeFile({
-          path: pdfFileName,
-          data: base64Data,
-          directory: Directory.Cache
-        });
-        pdfFileUri = savedPdf.uri;
-      } catch (fsErr) {
-        console.warn('Erro ao gravar no Directory.Cache:', fsErr);
-      }
-
-      if (pdfFileUri) {
+      if (Capacitor.isNativePlatform()) {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const { Share } = await import('@capacitor/share');
         try {
+          const savedPdf = await Filesystem.writeFile({ path: pdfFileName, data: base64Data, directory: Directory.Cache });
           await Share.share({
             title: `Laudo Técnico Ecowave - ${v.condominio || ''}`,
-            files: [pdfFileUri],
+            files: [savedPdf.uri],
             dialogTitle: 'Visualizar / Abrir Laudo (PDF)'
           });
           return;
@@ -422,35 +450,19 @@ export default function App() {
 
   const handleGenerateAndSharePDF = async (v: Vistoria) => {
     try {
-      const { Filesystem, Directory } = await import('@capacitor/filesystem');
-      const { Share } = await import('@capacitor/share');
-
-      const base64Data = await generatePDF(v, logoImg);
+      const base64Data = v.tipo_vistoria === 'Auditoria Ambiental' ? await generateAuditPDF(v) : await generatePDF(v, logoImg);
       const safeCondoName = (v.condominio || 'Vistoria').replace(/[^a-z0-9]/gi, '_').toLowerCase();
       const pdfFileName = `Relatorio_${safeCondoName}_${v.unidade || 'Unidade'}.pdf`;
 
-      let pdfFileUri = '';
-      try {
-        const savedPdf = await Filesystem.writeFile({
-          path: pdfFileName,
-          data: base64Data,
-          directory: Directory.Cache
-        });
-        pdfFileUri = savedPdf.uri;
-      } catch (fsErr) {
-        console.warn('Erro ao gravar no Directory.Cache:', fsErr);
-      }
-
-      try {
-        syncToCloud(pdfFileName, base64Data, 'application/pdf');
-      } catch (e) {}
-
-      if (pdfFileUri) {
+      if (Capacitor.isNativePlatform()) {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const { Share } = await import('@capacitor/share');
         try {
+          const savedPdf = await Filesystem.writeFile({ path: pdfFileName, data: base64Data, directory: Directory.Cache });
           await Share.share({
             title: `Laudo Técnico Ecowave - ${v.condominio || ''}`,
             text: `Relatório Técnico de Vistoria: ${v.condominio || ''} - Bloco ${v.bloco || ''} Unidade ${v.unidade || ''}`,
-            files: [pdfFileUri],
+            files: [savedPdf.uri],
             dialogTitle: 'Enviar Laudo Técnico (PDF)'
           });
           return;
@@ -484,14 +496,6 @@ export default function App() {
     }
   };
 
-  const handleShareWhatsAppInfo = (v: Vistoria) => {
-    const numbers = ['5511969162622', '5511988917611'];
-    const tipoCompleto = `${v.tipo_vistoria || ''}${v.subtipo_vistoria ? ` - ${v.subtipo_vistoria}` : ''}`;
-    const text = `*Vistoria Ecowave*\n\n*Condomínio:* ${v.condominio}\n*Bloco:* ${v.bloco} | *Unidade:* ${v.unidade}\n*Tipo:* ${tipoCompleto}\n*Técnico:* ${v.tecnico}\n*Data:* ${v.data}\n\n_Relatório completo enviado em anexo._`;
-    const url = `https://wa.me/${numbers[0]}?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
-  };
-
   const isAltoConsumo = vistoria.tipo_vistoria === 'Alto Consumo';
   const isReconfiguracao = vistoria.tipo_vistoria === 'Reconfiguração de Equipamento';
 
@@ -505,6 +509,7 @@ export default function App() {
           </button>
           <h2 style={{ margin: 0 }}>Histórico de Vistorias</h2>
         </div>
+        <PortalAccount user={portalUser} onUser={setPortalUser} />
         
         {vistoriasSalvas.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Nenhuma vistoria salva.</p>
@@ -541,10 +546,10 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Botões de Ação do Histórico: Visualizar, Enviar e Zap */}
+              {/* Ações do histórico */}
               <div style={{ 
                 display: 'grid', 
-                gridTemplateColumns: '1.2fr 1fr 0.8fr', 
+                gridTemplateColumns: 'repeat(3, 1fr)',
                 gap: '0.5rem', 
                 marginTop: '1.25rem', 
                 paddingTop: '1rem', 
@@ -561,16 +566,19 @@ export default function App() {
                   onClick={() => handleGenerateAndSharePDF(v)} 
                   style={{ backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.8rem', padding: '8px 4px' }}
                 >
-                  <Share2 size={15} /> Enviar
+                  <Share2 size={15} /> Compartilhar PDF
                 </button>
                 <button 
-                  onClick={() => handleShareWhatsAppInfo(v)} 
+                  onClick={() => { setVistoria(v); setShowHistory(false); setStep(v.tipo_vistoria === 'Auditoria Ambiental' ? 6 : 0); }}
                   className="secondary outline"
+                  disabled={Boolean(v.portal_status && v.portal_status !== 'returned')}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.8rem', padding: '8px 4px' }}
                 >
-                  <MessageSquare size={15} /> Zap
+                  <ChevronRight size={15} /> Editar
                 </button>
               </div>
+
+              <PortalSend v={v} user={portalUser} onSynced={loadHistory} />
             </div>
           ))
         )}
@@ -631,7 +639,8 @@ export default function App() {
                       setVistoria(prev => ({
                         ...prev,
                         tipo_vistoria: novoTipo,
-                        subtipo_vistoria: novoTipo === 'Troca de Equipamento' ? 'Troca de Medidor - AF' : 'AF'
+                        subtipo_vistoria: novoTipo === 'Troca de Equipamento' ? 'Troca de Medidor - AF' : 'AF',
+                        auditoria: novoTipo === 'Auditoria Ambiental' ? prev.auditoria || initialAudit() : prev.auditoria
                       }));
                     }}
                   >
@@ -686,7 +695,8 @@ export default function App() {
                       setVistoria(prev => ({
                         ...prev,
                         tipo_vistoria: novoTipo,
-                        subtipo_vistoria: 'AF'
+                        subtipo_vistoria: 'AF',
+                        auditoria: novoTipo === 'Auditoria Ambiental' ? prev.auditoria || initialAudit() : prev.auditoria
                       }));
                     }}
                   >
@@ -710,7 +720,8 @@ export default function App() {
               </div>
             )}
 
-            {/* IDENTIFICAÇÃO DOS EQUIPAMENTOS (OBRIGATÓRIO PARA TODOS OS TIPOS) */}
+            {/* A auditoria identifica os equipamentos na matriz de constatações. */}
+            {vistoria.tipo_vistoria !== 'Auditoria Ambiental' && <>
             <div style={{ backgroundColor: 'var(--background)', padding: '1rem', borderRadius: '12px', marginBottom: '1.25rem', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--primary)', marginBottom: '0.75rem', textTransform: 'uppercase' }}>
                 Identificação dos Equipamentos
@@ -794,11 +805,14 @@ export default function App() {
                 </div>
               )}
             </div>
+            </>}
 
             <button onClick={() => {
-              handleUpdate('data', format(new Date(), 'yyyy-MM-dd'));
-              handleUpdate('hora', format(new Date(), 'HH:mm'));
-              setStep(1);
+              if (!vistoria.id) {
+                handleUpdate('data', format(new Date(), 'yyyy-MM-dd'));
+                handleUpdate('hora', format(new Date(), 'HH:mm'));
+              }
+              setStep(vistoria.tipo_vistoria === 'Auditoria Ambiental' ? 6 : 1);
             }}>
               Iniciar Vistoria <ChevronRight size={18} />
             </button>
@@ -894,10 +908,11 @@ export default function App() {
                       onChange={e => updateCaixaAcoplada(idx, 'status', e.target.value)}
                       style={{ 
                         fontWeight: '600',
-                        borderColor: caixa.status === 'ok' ? 'var(--success)' : caixa.status === 'nao_aplicavel' ? 'var(--border)' : 'var(--error)',
-                        color: caixa.status === 'ok' ? 'var(--success)' : caixa.status === 'nao_aplicavel' ? 'var(--text-muted)' : 'var(--error)'
+                        borderColor: caixa.status === 'ok' ? 'var(--success)' : caixa.status === 'nao_aplicavel' || caixa.status === 'nao_verificado' ? 'var(--border)' : 'var(--error)',
+                        color: caixa.status === 'ok' ? 'var(--success)' : caixa.status === 'nao_aplicavel' || caixa.status === 'nao_verificado' ? 'var(--text-muted)' : 'var(--error)'
                       }}
                     >
+                      <option value="nao_verificado">Não verificado</option>
                       <option value="ok">🟢 Em Conformidade (Sem Vazamento)</option>
                       <option value="vazamento_ladrao">🔴 Vazamento pelo Ladrão (Nível Alto)</option>
                       <option value="vazamento_borracha">🔴 Vazamento pela Borracha Inferior</option>
@@ -905,7 +920,7 @@ export default function App() {
                       <option value="nao_aplicavel">⚪ Não se Aplica (Inexistente neste imóvel)</option>
                     </select>
 
-                    {caixa.status !== 'ok' && caixa.status !== 'nao_aplicavel' && (
+                    {caixa.status !== 'ok' && caixa.status !== 'nao_aplicavel' && caixa.status !== 'nao_verificado' && (
                       <div className="fade-in" style={{ marginTop: '0.75rem' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
                           <CameraInput 
@@ -1611,7 +1626,7 @@ export default function App() {
                   <Eye size={18} /> {isLoadingPreview ? 'Gerando...' : 'Visualizar Laudo'}
                 </button>
                 <button 
-                  onClick={saveVistoria} 
+                  onClick={() => saveVistoria()}
                   style={{ backgroundColor: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} 
                   disabled={!vistoria.parecer_tecnico}
                 >
@@ -1818,7 +1833,7 @@ export default function App() {
                 <Eye size={18} /> {isLoadingPreview ? 'Gerando...' : 'Visualizar Laudo'}
               </button>
               <button 
-                onClick={saveVistoria} 
+                onClick={() => saveVistoria()}
                 style={{ backgroundColor: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} 
                 disabled={!vistoria.parecer_tecnico}
               >
@@ -1832,6 +1847,25 @@ export default function App() {
               style={{ marginTop: '0.75rem' }}
             >
               <ChevronLeft size={18} /> Voltar ao Passo Anterior
+            </button>
+          </div>
+        </motion.div>
+      )}
+      {step === 6 && vistoria.tipo_vistoria === 'Auditoria Ambiental' && (
+        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
+          <AuditForm value={vistoria.auditoria || initialAudit()} onChange={audit => handleUpdate('auditoria', audit)} />
+          <div className="card">
+            <button className="secondary" onClick={() => handlePreviewPDF(vistoria)} disabled={isLoadingPreview}>
+              <Eye size={18} /> {isLoadingPreview ? 'Gerando...' : 'Visualizar relatório para revisão'}
+            </button>
+            <button onClick={() => saveVistoria(true)} style={{ marginTop: '0.75rem' }}>
+              <Save size={18} /> Salvar rascunho
+            </button>
+            <button onClick={() => saveVistoria()} disabled={!auditReadyForReview(vistoria.auditoria)} style={{ marginTop: '0.75rem', backgroundColor: 'var(--success)' }}>
+              <Save size={18} /> Salvar auditoria localmente
+            </button>
+            <button className="secondary outline" onClick={() => setStep(0)} style={{ marginTop: '0.75rem' }}>
+              <ChevronLeft size={18} /> Voltar à identificação
             </button>
           </div>
         </motion.div>

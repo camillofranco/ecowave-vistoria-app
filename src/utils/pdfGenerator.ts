@@ -110,6 +110,10 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
       ? 'RELATÓRIO TÉCNICO DE ALTO CONSUMO' 
       : isReconfiguracao
       ? 'RELATÓRIO TÉCNICO DE RECONFIGURAÇÃO'
+      : v.tipo_vistoria === 'Vazamento'
+      ? 'RELATÓRIO TÉCNICO DE VAZAMENTO'
+      : v.tipo_vistoria === 'Troca de Equipamento'
+      ? 'RELATÓRIO TÉCNICO DE TROCA DE EQUIPAMENTO'
       : 'RELATÓRIO TÉCNICO DE VISTORIA GERAL', 
     margin, 
     42
@@ -118,7 +122,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   doc.setFontSize(8.5);
   doc.setTextColor(100);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Data de Emissão: ${v.data || ''} às ${v.hora || ''} | Identificador: #${v.id || 'N/A'}`, margin, 48);
+  doc.text(`Data de Emissão: ${v.data || ''} às ${v.hora || ''} | Identificador: ${v.inspection_uid?.slice(0, 8) || `#${v.id || 'N/A'}`}`, margin, 48);
 
   // Bloco de Informações do Local (com bordas claras e estruturadas)
   const infoBoxY = 53;
@@ -209,7 +213,11 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
         let statusColor: [number, number, number] = colorGreen;
         let diag = 'Vedação inferior e nível do ladrão normais';
 
-        if (c.status === 'vazamento_ladrao') {
+        if (c.status === 'nao_verificado') {
+          statusLabel = 'NÃO VERIFICADO';
+          statusColor = colorDarkGray;
+          diag = 'Inspeção pendente';
+        } else if (c.status === 'vazamento_ladrao') {
           statusLabel = 'VAZAMENTO NO LADRÃO';
           statusColor = [220, 38, 38];
           diag = 'Nível de água acima do tubo extravasor (regulagem necessária)';
@@ -258,9 +266,11 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
       doc.text('2. AFERIÇÃO DE PRECISÃO DO HIDRÔMETRO (BALDE GRADUADO DE 10 LITROS)', margin, currentY);
 
       const afericaoRows = v.afericoes_medidores.map(a => {
-        const isConforme = a.status === 'conforme';
+        const hasReadings = Boolean(a.leitura_antes?.trim() && a.leitura_depois?.trim());
+        const status = hasReadings ? a.status : 'pendente';
+        const isConforme = status === 'conforme';
         const desvio = a.desvio_percentual || 0;
-        const colorResult: [number, number, number] = isConforme ? colorGreen : [220, 38, 38];
+        const colorResult: [number, number, number] = isConforme ? colorGreen : status === 'divergente' ? [220, 38, 38] : colorDarkGray;
         return [
           `Hidrômetro ${a.tipo}`,
           a.leitura_antes || '-',
@@ -268,7 +278,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
           `${(a.litros_medidos_hidrometro || 0).toFixed(1)} L (${(a.diferenca_m3 || 0).toFixed(4)} m³)`,
           `${(a.volume_balde_litros || 10).toFixed(1)} L`,
           `${desvio > 0 ? '+' : ''}${desvio.toFixed(1)}%`,
-          { content: isConforme ? 'CONFORME' : 'DIVERGENTE', styles: { textColor: colorResult, fontStyle: 'bold' as const } }
+          { content: isConforme ? 'CONFORME' : status === 'divergente' ? 'DIVERGENTE' : status === 'invalido' ? 'DADOS INVÁLIDOS' : 'NÃO AFERIDO', styles: { textColor: colorResult, fontStyle: 'bold' as const } }
         ];
       });
 
@@ -469,7 +479,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   }
 
   // Caixa do Parecer Técnico Final
-  const parecerText = v.parecer_tecnico || 'Vistoria técnica finalizada nas condições descritas neste relatório.';
+  const parecerText = v.parecer_tecnico || 'Parecer técnico ainda não informado.';
   doc.setFontSize(8.5);
   const splitParecer = doc.splitTextToSize(parecerText, width - (margin * 2) - 10);
   const parecerBoxH = Math.max(26, 12 + (splitParecer.length * 4.2));

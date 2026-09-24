@@ -17,6 +17,8 @@ const SignatureInput: React.FC<SignatureInputProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const signaturePadRef = useRef<SignaturePad | null>(null);
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
 
   useEffect(() => {
     if (canvasRef.current) {
@@ -45,7 +47,7 @@ const SignatureInput: React.FC<SignatureInputProps> = ({
       resizeCanvas();
 
       signaturePadRef.current.addEventListener('endStroke', () => {
-        onSave(signaturePadRef.current?.toDataURL() || '');
+        onSaveRef.current(signaturePadRef.current?.toDataURL() || '');
       });
 
       return () => window.removeEventListener('resize', resizeCanvas);

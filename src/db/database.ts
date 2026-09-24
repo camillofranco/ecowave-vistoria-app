@@ -25,7 +25,7 @@ export interface TesteLeitura {
 export interface CaixaAcopladaItem {
   id: string;
   local: string; // Ex: 'W.C. Social', 'Suíte 1', 'Lavabo'
-  status: 'ok' | 'vazamento_ladrao' | 'vazamento_borracha' | 'vazamento_ambos' | 'nao_aplicavel';
+  status: 'nao_verificado' | 'ok' | 'vazamento_ladrao' | 'vazamento_borracha' | 'vazamento_ambos' | 'nao_aplicavel';
   observacao?: string;
   imagem?: string;
   video?: string;
@@ -39,7 +39,7 @@ export interface AfericaoMedidorItem {
   volume_balde_litros: number; // Padrão: 10
   litros_medidos_hidrometro: number;
   desvio_percentual: number;
-  status: 'conforme' | 'divergente';
+  status: 'pendente' | 'conforme' | 'divergente' | 'invalido';
   imagem_antes?: string;
   imagem_balde?: string;
   imagem_depois?: string;
@@ -125,8 +125,43 @@ export interface ReconfiguracaoEquipamento {
   observacao?: string;
 }
 
+export type AuditResult = 'nao_verificado' | 'conforme' | 'nao_conforme' | 'nao_aplicavel';
+
+export interface AuditItem {
+  id: string;
+  criterio: string;
+  resultado: AuditResult;
+  evidencia?: string;
+  observacao?: string;
+  criticidade?: 'baixa' | 'media' | 'alta';
+  acao_corretiva?: string;
+  responsavel_acao?: string;
+  prazo_acao?: string;
+}
+
+export interface Auditoria {
+  objetivo: string;
+  escopo: string;
+  metodo: string;
+  periodo_analisado: string;
+  documentos_analisados: string;
+  limitacoes: string;
+  itens: AuditItem[];
+  conclusao: string;
+  engenheira_nome?: string;
+  engenheira_crea?: string;
+  art_numero?: string;
+  assinatura_engenheira?: string;
+  revisado_em?: string;
+}
+
 export interface Vistoria {
   id?: number;
+  inspection_uid?: string;
+  portal_unit_id?: string;
+  portal_inspection_id?: string;
+  portal_status?: 'submitted' | 'returned' | 'approved' | 'published';
+  portal_synced_at?: string;
   data: string;
   hora: string;
   condominio: string;
@@ -144,6 +179,7 @@ export interface Vistoria {
 
   // Módulo especializado de Reconfiguração
   reconfiguracao?: ReconfiguracaoEquipamento;
+  auditoria?: Auditoria;
 
   testes: TesteLeitura[];
   ponto_consumo?: PontoConsumo;
