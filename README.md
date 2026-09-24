@@ -1,73 +1,27 @@
-# React + TypeScript + Vite
+# Ecowave Vistorias
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicativo React/Capacitor para vistorias de água e gás, auditoria ambiental, PDF e histórico local.
 
-Currently, two official plugins are available:
+## Uso
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. Registre condomínio, bloco, unidade, técnico e modalidade.
+2. Na Auditoria Ambiental, documente objetivo, escopo, método, período, fontes, limitações, oito critérios, evidências, ações corretivas e conclusão.
+3. Salve a vistoria no aparelho. No histórico, entre com a conta da equipe no Portal Ecowave, escolha a unidade cadastrada e confirme o envio. O app apresenta um recibo após a gravação no portal.
+4. Uma engenheira ambiental habilitada pela administração revisa a auditoria no portal, aprova ou devolve com justificativa. A administração publica a auditoria aprovada somente para moradores vinculados à unidade.
+5. O morador consulta o PDF e os dados da aprovação em **Minhas vistorias** no portal.
 
-## React Compiler
+O PDF produzido no aparelho é um registro de campo; a validação profissional aparece no portal. O compartilhamento manual do PDF continua disponível.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Vistorias ainda não enviadas ficam apenas no IndexedDB do aparelho. Limpar dados do navegador ou desinstalar o app pode apagá-las.
 
-## Expanding the ESLint configuration
+## Desenvolvimento
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+pnpm install
+pnpm run build
+pnpm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Integração
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+O portal armazena vistorias em tabelas e bucket próprios, separados dos relatórios mensais. A migração do portal deve ser aplicada antes de habilitar o envio em produção. Consulte [ANALISE_E_INTEGRACAO.md](./ANALISE_E_INTEGRACAO.md).
