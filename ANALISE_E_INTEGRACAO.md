@@ -31,14 +31,16 @@
 - Build de produção e TypeScript do app: sem erros.
 - Build de produção e TypeScript do portal: sem erros.
 - Estrutura real do banco Supabase conferida em modo leitura: tabelas e colunas exigidas estão presentes; o controle administrativo usa `private.has_role`.
-- Dois PRs draft abertos, um por repositório. Nenhuma migração foi aplicada ao banco e nenhuma versão foi publicada.
+- Os dois PRs foram integrados às respectivas ramificações principais em 24/09/2026. A migração foi aplicada ao banco do portal e as páginas novas estão publicadas.
+- O teste transacional com uma auditoria fictícia confirmou que a aprovação e a publicação funcionam e que o morador da unidade consegue consultar o registro enquanto uma conta de outra unidade não consegue. A transação foi revertida e não deixou dados de teste.
+- O fluxo de compilação e publicação do app no GitHub Pages concluiu com sucesso e gerou um APK Android de teste.
 
 ## Ordem de ativação e testes finais
 
-1. Aplicar a migração do portal em ambiente controlado e atualizar os tipos gerados do Supabase.
+1. Cadastrar contas reais de técnicos e, após conferir o CREA, da engenheira revisora em `/admin/vistorias`.
 2. Validar com contas reais de administrador, técnico, revisora e morador, incluindo uma conta de síndico sem acesso à auditoria.
 3. Testar envio, recibo, duplicação, devolução, reenvio, aprovação, publicação e leitura do PDF pela unidade correta.
-4. Publicar o portal e depois a nova versão React/Android. Os dois componentes precisam estar ativos para o envio funcionar.
+4. Regenerar os tipos do Supabase na próxima manutenção do portal e distribuir um APK de produção assinado caso a equipe precise atualizar o pacote Android, além da versão web já publicada.
 
 ## Melhorias posteriores recomendadas
 
