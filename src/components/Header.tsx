@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import logo from '../assets/logo.png';
 import { Sparkles, RefreshCw, X, CheckCircle2, Zap, AlertCircle, Sun, Moon, Laptop } from 'lucide-react';
 
-const CURRENT_LOCAL_VERSION = '2.7.0';
+const CURRENT_LOCAL_VERSION = '2.8.3';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -13,7 +13,7 @@ interface RemoteVersionData {
   changelog: string[];
 }
 
-const Header: React.FC = () => {
+const Header: React.FC<{ hasUnsavedChanges?: boolean }> = ({ hasUnsavedChanges = false }) => {
   const [showModal, setShowModal] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -67,8 +67,7 @@ const Header: React.FC = () => {
         setRemoteData(data);
 
         // Compara a versão remota com a instalada
-        const savedVersion = localStorage.getItem('ecowave_installed_version') || CURRENT_LOCAL_VERSION;
-        const isNewer = data.version !== savedVersion && data.version !== CURRENT_LOCAL_VERSION;
+        const isNewer = data.version !== CURRENT_LOCAL_VERSION;
         setHasNewUpdate(isNewer);
 
         // Abre automaticamente se for uma nova versão não instalada
@@ -94,6 +93,10 @@ const Header: React.FC = () => {
   };
 
   const handleApplyUpdate = async () => {
+    if (hasUnsavedChanges) {
+      alert('Salve a vistoria antes de atualizar. A atualização recarrega o aplicativo e as alterações abertas ainda não foram salvas.');
+      return;
+    }
     setUpdating(true);
     try {
       if (remoteData?.version) {
