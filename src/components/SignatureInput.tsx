@@ -18,45 +18,97 @@ const SignatureInput: React.FC<SignatureInputProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const signaturePadRef = useRef<SignaturePad | null>(null);
   const onSaveRef = useRef(onSave);
-  onSaveRef.current = onSave;
+  const renderedValueRef = useRef<string | undefined>(undefined);
+  const imageLoadRef = useRef(0);
+  const bitmapRef = useRef<HTMLCanvasElement | HTMLImageElement | null>(null);
+
+  useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
+
+  // One pad per mounted canvas. Recreating it for each emitted stroke leaves
+  // pointer handlers behind and makes a multi-stroke signature progressively slow.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const pad = new SignaturePad(canvas, {
+      backgroundColor: '#ffffff',
+      penColor: '#0f172a'
+    });
+    signaturePadRef.current = pad;
+    renderedValueRef.current = undefined;
+
+    const resizeCanvas = () => {
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      const width = Math.round(canvas.offsetWidth * ratio);
+      const height = Math.round(canvas.offsetHeight * ratio);
+      if (!width || !height || (canvas.width === width && canvas.height === height)) return;
+      // Keep the original bitmap through repeated rotations (no cumulative
+      // shrinking). History signatures also have no vector strokes.
+      const snapshot = bitmapRef.current;
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      context?.scale(ratio, ratio);
+      pad.clear();
+      if (snapshot) {
+        const scale = Math.min(width / snapshot.width, height / snapshot.height);
+        context?.drawImage(snapshot, 0, 0, snapshot.width * scale / ratio, snapshot.height * scale / ratio);
+      }
+    };
+
+    const saveStroke = () => {
+      // A pending historical image must not overwrite a newer stroke.
+      imageLoadRef.current += 1;
+      const snapshot = document.createElement('canvas');
+      snapshot.width = canvas.width;
+      snapshot.height = canvas.height;
+      snapshot.getContext('2d')?.drawImage(canvas, 0, 0);
+      bitmapRef.current = snapshot;
+      const value = pad.toDataURL();
+      renderedValueRef.current = value;
+      onSaveRef.current(value);
+    };
+    resizeCanvas();
+    pad.addEventListener('endStroke', saveStroke);
+    window.addEventListener('resize', resizeCanvas);
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resizeCanvas) : null;
+    observer?.observe(canvas);
+    return () => {
+      imageLoadRef.current += 1;
+      observer?.disconnect();
+      window.removeEventListener('resize', resizeCanvas);
+      pad.removeEventListener('endStroke', saveStroke);
+      pad.off();
+      signaturePadRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
-    if (canvasRef.current) {
-      signaturePadRef.current = new SignaturePad(canvasRef.current, {
-        backgroundColor: '#ffffff',
-        penColor: '#0f172a'
-      });
-
-      if (initialValue) {
-        signaturePadRef.current.fromDataURL(initialValue);
-      }
-
-      const resizeCanvas = () => {
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        const canvas = canvasRef.current;
-        if (canvas) {
-          canvas.width = canvas.offsetWidth * ratio;
-          canvas.height = canvas.offsetHeight * ratio;
-          canvas.getContext('2d')?.scale(ratio, ratio);
-          signaturePadRef.current?.clear();
-          if (initialValue) signaturePadRef.current?.fromDataURL(initialValue);
-        }
-      };
-
-      window.addEventListener('resize', resizeCanvas);
-      resizeCanvas();
-
-      signaturePadRef.current.addEventListener('endStroke', () => {
-        onSaveRef.current(signaturePadRef.current?.toDataURL() || '');
-      });
-
-      return () => window.removeEventListener('resize', resizeCanvas);
-    }
+    const pad = signaturePadRef.current;
+    const canvas = canvasRef.current;
+    if (!pad || !canvas || initialValue === renderedValueRef.current) return;
+    renderedValueRef.current = initialValue;
+    const request = ++imageLoadRef.current;
+    pad.clear();
+    bitmapRef.current = null;
+    if (!initialValue) return;
+    const image = new Image();
+    image.onload = () => {
+      if (request !== imageLoadRef.current || signaturePadRef.current !== pad) return;
+      bitmapRef.current = image;
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      const scale = Math.min(canvas.width / image.width, canvas.height / image.height);
+      canvas.getContext('2d')?.drawImage(image, 0, 0, image.width * scale / ratio, image.height * scale / ratio);
+    };
+    image.src = initialValue;
+    return () => { imageLoadRef.current += 1; };
   }, [initialValue]);
 
   const clear = () => {
+    imageLoadRef.current += 1;
     signaturePadRef.current?.clear();
-    onSave('');
+    bitmapRef.current = null;
+    renderedValueRef.current = '';
+    onSaveRef.current('');
   };
 
   return (
@@ -79,9 +131,10 @@ const SignatureInput: React.FC<SignatureInputProps> = ({
       }}>
         <canvas 
           ref={canvasRef} 
-          style={{ width: '100%', height: '170px', cursor: 'crosshair', display: 'block' }} 
+          style={{ width: '100%', height: '170px', cursor: 'crosshair', display: 'block', touchAction: 'none' }} 
         />
         <button 
+          type="button"
           onClick={clear}
           className="secondary"
           style={{ 
