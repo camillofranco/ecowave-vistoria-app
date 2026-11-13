@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import CameraInput from './components/CameraInput';
+import ReplacementForm from './components/ReplacementForm';
 import SignatureInput from './components/SignatureInput';
 import StopwatchTimer from './components/StopwatchTimer';
 import { db } from './db/database';
@@ -176,6 +177,11 @@ const newVistoria = (): Partial<Vistoria> => ({
 
 export default function App() {
   const [step, setStep] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [formError, setFormError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [started, setStarted] = useState(false);
   const [vistoria, setVistoria] = useState<Partial<Vistoria>>(newVistoria);
   const [vistoriasSalvas, setVistoriasSalvas] = useState<Vistoria[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -184,8 +190,41 @@ export default function App() {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   useEffect(() => {
-    loadHistory();
+    void loadHistory().catch(() => setFormError('Não foi possível ler o histórico local. Não limpe os dados do aplicativo.'));
   }, []);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [step, showHistory]);
+
+  const hasWork = Boolean(vistoria.condominio?.trim() || vistoria.unidade?.trim() || started || vistoria.id);
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (hasWork) { event.preventDefault(); event.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasWork]);
+
+  const startNew = () => {
+    if (savingRef.current) return;
+    if (hasWork && !window.confirm('Iniciar uma nova vistoria? As alterações não salvas da vistoria aberta serão descartadas. As vistorias do histórico serão preservadas.')) return;
+    setVistoria(newVistoria());
+    setStarted(false);
+    setFormError('');
+    setNotice('');
+    setShowHistory(false);
+    setStep(0);
+    window.scrollTo(0, 0);
+  };
+
+  const validateLocation = () => {
+    if (!vistoria.condominio?.trim() || !vistoria.unidade?.trim()) {
+      setFormError('Informe condomínio e unidade antes de continuar. Para casa, o bloco pode ficar em branco.');
+      return false;
+    }
+    return true;
+  };
 
   useEffect(() => {
     if (!showHistory || !portalUser) return;
@@ -368,30 +407,44 @@ export default function App() {
   };
 
   const saveVistoria = async (allowDraft = false) => {
+    if (savingRef.current) return;
+    setFormError('');
+    if (!validateLocation()) { setStep(0); return; }
+    if (vistoria.tipo_vistoria === 'Auditoria Ambiental' && !allowDraft) {
+      if (!vistoria.tecnico?.trim() || !auditReadyForReview(vistoria.auditoria)) {
+        setFormError('Complete o técnico, o planejamento, todos os critérios e a conclusão da auditoria.');
+        return;
+      }
+    } else if (!allowDraft && !vistoria.parecer_tecnico?.trim()) {
+      setFormError('Preencha o parecer técnico antes de finalizar a vistoria.');
+      window.scrollTo(0, 0);
+      return;
+    }
+    savingRef.current = true;
+    setIsSaving(true);
     try {
-      if (!vistoria.condominio?.trim() || !vistoria.bloco?.trim() || !vistoria.unidade?.trim()) {
-        alert('Informe condomínio, bloco e unidade antes de salvar.'); return;
-      }
-      if (vistoria.tipo_vistoria === 'Auditoria Ambiental' && !allowDraft && !vistoria.tecnico?.trim()) {
-        alert('Informe o técnico responsável pela coleta da auditoria.'); return;
-      }
-      if (vistoria.tipo_vistoria === 'Auditoria Ambiental' && !allowDraft && !auditReadyForReview(vistoria.auditoria)) {
-        alert('Complete o planejamento, todos os critérios e a conclusão da auditoria.'); return;
-      }
       const dataToSave = {
         ...vistoria,
         inspection_uid: vistoria.inspection_uid || crypto.randomUUID(),
         createdAt: vistoria.createdAt || Date.now()
       } as Vistoria;
-      
-      await db.vistorias.put(dataToSave);
-      alert(allowDraft ? 'Rascunho salvo no aparelho.' : 'Vistoria salva localmente com sucesso!');
+      const id = await db.vistorias.put(dataToSave);
+      // Confirm persistence before clearing the form or reporting success.
+      setVistoria({ ...dataToSave, id: Number(id) });
+      const saved = await db.vistorias.get(id);
+      if (!saved) throw new Error('Não foi possível confirmar a gravação.');
+      setVistoriasSalvas(previous => [saved, ...previous.filter(item => item.id !== saved.id)]);
+      setNotice(allowDraft ? 'Rascunho salvo no aparelho.' : 'Vistoria finalizada e salva no aparelho. Você pode visualizar o laudo ou iniciar uma nova.');
       setVistoria(newVistoria());
+      setStarted(false);
       setStep(0);
-      loadHistory();
-    } catch (err: any) {
+      setShowHistory(true);
+    } catch (err) {
       console.error('Erro detalhado ao salvar:', err);
-      alert(`Erro ao salvar vistoria: ${err.message || 'Erro desconhecido'}`);
+      setFormError(`Não foi possível salvar. Seus dados continuam no formulário. ${err instanceof Error ? err.message : 'Verifique o armazenamento do aparelho e tente novamente.'}`);
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -502,13 +555,15 @@ export default function App() {
   if (showHistory) {
     return (
       <div className="fade-in">
-        <Header />
+        <Header hasUnsavedChanges={hasWork} />
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
           <button onClick={() => setShowHistory(false)} className="secondary" style={{ width: 'auto' }}>
             <ArrowLeft size={18} />
           </button>
           <h2 style={{ margin: 0 }}>Histórico de Vistorias</h2>
         </div>
+        {notice && <p role="status" className="card">{notice}</p>}
+        <button onClick={startNew} style={{ marginBottom: '1rem' }}><Plus size={18} /> Nova Vistoria</button>
         <PortalAccount user={portalUser} onUser={setPortalUser} />
         
         {vistoriasSalvas.length === 0 ? (
@@ -569,7 +624,7 @@ export default function App() {
                   <Share2 size={15} /> Compartilhar PDF
                 </button>
                 <button 
-                  onClick={() => { setVistoria(v); setShowHistory(false); setStep(v.tipo_vistoria === 'Auditoria Ambiental' ? 6 : 0); }}
+                  onClick={() => { setVistoria(structuredClone(v)); setStarted(true); setFormError(''); setNotice(''); setShowHistory(false); setStep(v.tipo_vistoria === 'Auditoria Ambiental' ? 6 : 0); }}
                   className="secondary outline"
                   disabled={Boolean(v.portal_status && v.portal_status !== 'returned')}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.8rem', padding: '8px 4px' }}
@@ -588,8 +643,13 @@ export default function App() {
 
   return (
     <div className="fade-in">
-      <Header />
+      <Header hasUnsavedChanges={hasWork} />
       
+      <div style={{ marginBottom: '1rem' }}>
+        <button className="secondary" onClick={startNew} disabled={isSaving}><Plus size={18} /> Nova Vistoria</button>
+        {vistoria.id && <p role="status">Editando vistoria salva. A data e a hora originais serão preservadas. Para outro atendimento, toque em Nova Vistoria.</p>}
+        {formError && <p role="alert" style={{ color: 'var(--error)' }}>{formError}</p>}
+      </div>
       {/* PASSO 0: DADOS INICIAIS */}
       {step === 0 && (
         <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
@@ -597,11 +657,11 @@ export default function App() {
             <h2>Dados Iniciais da Vistoria</h2>
             <div className="grid-2">
               <div className="form-group">
-                <label>Data (Automática)</label>
+                <label>Data do atendimento</label>
                 <input type="date" value={vistoria.data} disabled style={{ opacity: 0.7 }} />
               </div>
               <div className="form-group">
-                <label>Hora (Automática)</label>
+                <label>Hora de início</label>
                 <input type="time" value={vistoria.hora} disabled style={{ opacity: 0.7 }} />
               </div>
             </div>
@@ -612,7 +672,7 @@ export default function App() {
             <div className="grid-2">
               <div className="form-group">
                 <label>Bloco</label>
-                <input type="text" placeholder="Ex: A" value={vistoria.bloco} onChange={e => handleUpdate('bloco', e.target.value)} />
+                <input type="text" placeholder="Ex: A (deixe vazio para casa)" value={vistoria.bloco} onChange={e => handleUpdate('bloco', e.target.value)} />
               </div>
               <div className="form-group">
                 <label>Unidade</label>
@@ -808,11 +868,14 @@ export default function App() {
             </>}
 
             <button onClick={() => {
-              if (!vistoria.id) {
+              setFormError('');
+              if (!validateLocation()) return;
+              if (!vistoria.id && !started) {
                 handleUpdate('data', format(new Date(), 'yyyy-MM-dd'));
                 handleUpdate('hora', format(new Date(), 'HH:mm'));
               }
-              setStep(vistoria.tipo_vistoria === 'Auditoria Ambiental' ? 6 : 1);
+              setStarted(true);
+              setStep(vistoria.tipo_vistoria === 'Auditoria Ambiental' ? 6 : vistoria.tipo_vistoria === 'Troca de Equipamento' ? 7 : 1);
             }}>
               Iniciar Vistoria <ChevronRight size={18} />
             </button>
@@ -1628,9 +1691,9 @@ export default function App() {
                 <button 
                   onClick={() => saveVistoria()}
                   style={{ backgroundColor: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} 
-                  disabled={!vistoria.parecer_tecnico}
+                  disabled={isSaving}
                 >
-                  <Save size={18} /> Finalizar Vistoria
+                  <Save size={18} /> {isSaving ? 'Salvando...' : 'Finalizar Vistoria'}
                 </button>
               </div>
 
@@ -1835,19 +1898,32 @@ export default function App() {
               <button 
                 onClick={() => saveVistoria()}
                 style={{ backgroundColor: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} 
-                disabled={!vistoria.parecer_tecnico}
+                disabled={isSaving}
               >
-                <Save size={18} /> Finalizar Vistoria
+                <Save size={18} /> {isSaving ? 'Salvando...' : 'Finalizar Vistoria'}
               </button>
             </div>
 
             <button 
-              onClick={() => setStep(4)} 
+              onClick={() => setStep(vistoria.tipo_vistoria === 'Troca de Equipamento' ? 7 : 4)}
               className="secondary outline"
               style={{ marginTop: '0.75rem' }}
             >
               <ChevronLeft size={18} /> Voltar ao Passo Anterior
             </button>
+          </div>
+        </motion.div>
+      )}
+      {step === 7 && vistoria.tipo_vistoria === 'Troca de Equipamento' && (
+        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
+          <ReplacementForm
+            subtipo={vistoria.subtipo_vistoria}
+            value={vistoria.trocas}
+            onChange={items => handleUpdate('trocas', items)}
+          />
+          <div className="card">
+            <button onClick={() => setStep(0)} className="secondary"><ChevronLeft size={18} /> Voltar à identificação</button>
+            <button onClick={() => setStep(5)} style={{ marginTop: '0.75rem' }}>Avançar para Parecer <ChevronRight size={18} /></button>
           </div>
         </motion.div>
       )}
@@ -1858,10 +1934,10 @@ export default function App() {
             <button className="secondary" onClick={() => handlePreviewPDF(vistoria)} disabled={isLoadingPreview}>
               <Eye size={18} /> {isLoadingPreview ? 'Gerando...' : 'Visualizar relatório para revisão'}
             </button>
-            <button onClick={() => saveVistoria(true)} style={{ marginTop: '0.75rem' }}>
+            <button onClick={() => saveVistoria(true)} disabled={isSaving} style={{ marginTop: '0.75rem' }}>
               <Save size={18} /> Salvar rascunho
             </button>
-            <button onClick={() => saveVistoria()} disabled={!auditReadyForReview(vistoria.auditoria)} style={{ marginTop: '0.75rem', backgroundColor: 'var(--success)' }}>
+            <button onClick={() => saveVistoria()} disabled={isSaving} style={{ marginTop: '0.75rem', backgroundColor: 'var(--success)' }}>
               <Save size={18} /> Salvar auditoria localmente
             </button>
             <button className="secondary outline" onClick={() => setStep(0)} style={{ marginTop: '0.75rem' }}>
