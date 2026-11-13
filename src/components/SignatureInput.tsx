@@ -131,7 +131,7 @@ const SignatureInput: React.FC<SignatureInputProps> = ({
       }}>
         <canvas 
           ref={canvasRef} 
-          style={{ width: '100%', height: '170px', cursor: 'crosshair', display: 'block', touchAction: 'none' }} 
+          style={{ width: '100%', height: '170px', cursor: 'crosshair', display: 'block', touchAction: 'none' }}
         />
         <button 
           type="button"
