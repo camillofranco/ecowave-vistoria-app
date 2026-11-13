@@ -155,6 +155,19 @@ export interface Auditoria {
   revisado_em?: string;
 }
 
+export interface TrocaEquipamentoItem {
+  utilidade: 'AF' | 'AQ' | 'Gás';
+  medidor_antes?: string;
+  medidor_depois?: string;
+  transmissor_antes?: string;
+  transmissor_depois?: string;
+  leitura_antes?: string;
+  leitura_depois?: string;
+  foto_antes?: string;
+  foto_depois?: string;
+  observacao?: string;
+}
+
 export interface Vistoria {
   id?: number;
   inspection_uid?: string;
@@ -179,6 +192,7 @@ export interface Vistoria {
 
   // Módulo especializado de Reconfiguração
   reconfiguracao?: ReconfiguracaoEquipamento;
+  trocas?: TrocaEquipamentoItem[];
   auditoria?: Auditoria;
 
   testes: TesteLeitura[];

@@ -1,11 +1,12 @@
 {
-  "version": "2.7.0",
-  "releaseDate": "03/09/2026",
-  "title": "Atualização Ecowave v2.7.0 - Reconfiguração de Equipamento e Séries Padronizados",
+  "version": "2.8.3",
+  "releaseDate": "13/11/2026",
+  "title": "Finalização e início de novas vistorias",
   "changelog": [
-    "Nova Vistoria de Reconfiguração de Equipamento: Fluxo simples com as 3 fotos antes (Medidor, Transmissor, Leitura do Sistema) e as 3 fotos depois",
-    "Número de Série do Medidor: Campo padronizado com letras maiúsculas automáticas em todas as vistorias",
-    "Número de Série do Transmissor: Campo padronizado estritamente numérico em todas as vistorias",
-    "Laudo Técnico Dedicado: Tabela comparativa e anexo fotográfico 1:1 organizado das 6 evidências"
+    "Finalização com confirmação no histórico e proteção contra toques repetidos",
+    "Nova Vistoria cria atendimento independente com data e hora atuais",
+    "Assinaturas preservadas ao girar a tela, sem acumular eventos",
+    "Validação visível e formulário preservado em caso de falha ao salvar",
+    "Atualização bloqueada enquanto houver alterações não salvas"
   ]
 }
