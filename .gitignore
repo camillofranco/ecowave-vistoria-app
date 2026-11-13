@@ -33,3 +33,6 @@ android/local.properties
 *.apk
 *.aab
 *.ap_
+
+/test-results/
+/playwright-report/
