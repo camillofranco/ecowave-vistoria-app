@@ -99,6 +99,7 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   doc.line(0, 31, width, 31);
 
   const isAltoConsumo = v.tipo_vistoria === 'Alto Consumo' || v.tipo_vistoria === 'alto_consumo';
+  const isTroca = v.tipo_vistoria === 'Troca de Equipamento';
   const isReconfiguracao = v.tipo_vistoria === 'Reconfiguração de Equipamento';
 
   // Título Oficial e Metadados
@@ -162,7 +163,33 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
   let currentY = infoBoxY + infoBoxH + 8;
 
   // --- SEÇÃO 1: PROCEDIMENTOS TÉCNICOS POR TIPO ---
-  if (isReconfiguracao) {
+  if (isTroca) {
+    doc.setTextColor(...colorPurple);
+    doc.setFontSize(10.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REGISTRO DE TROCA DE EQUIPAMENTO', margin, currentY);
+    const equipamento = v.subtipo_vistoria?.split(' - ')[0] || 'Troca de Medidor';
+    const rows: string[][] = [];
+    for (const item of v.trocas || []) {
+      if (v.subtipo_vistoria && !v.subtipo_vistoria.includes(item.utilidade)) continue;
+      if (equipamento !== 'Troca de Transmissor') rows.push([item.utilidade, 'Série do medidor', item.medidor_antes || '-', item.medidor_depois || '-']);
+      if (equipamento !== 'Troca de Medidor') rows.push([item.utilidade, 'Série do transmissor', item.transmissor_antes || '-', item.transmissor_depois || '-']);
+      rows.push([item.utilidade, 'Leitura (m³)', item.leitura_antes || '-', item.leitura_depois || '-']);
+      if (item.observacao) rows.push([item.utilidade, 'Observações', item.observacao, '']);
+    }
+    autoTable(doc, {
+      startY: currentY + 3,
+      margin: { left: margin, right: margin },
+      head: [['UTILIDADE', 'REGISTRO', 'ANTES / RETIRADO', 'DEPOIS / INSTALADO']],
+      body: rows.length ? rows : [['-', 'Dados da troca não informados', '-', '-']],
+      theme: 'grid',
+      headStyles: { fillColor: colorPurple, textColor: 255, fontSize: 8, cellPadding: 3 },
+      bodyStyles: { fontSize: 8, cellPadding: 3, textColor: colorDarkGray },
+      styles: { lineColor: colorBorder, lineWidth: 0.5 }
+    });
+    currentY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || currentY + 20;
+    currentY += 7;
+  } else if (isReconfiguracao) {
     // RECONFIGURAÇÃO DE EQUIPAMENTO
     doc.setTextColor(...colorPurple);
     doc.setFontSize(10.5);
@@ -645,6 +672,14 @@ export const generatePDF = async (v: Vistoria, logoUrl?: string): Promise<string
     
     imgCount++;
   };
+
+  if (isTroca) {
+    for (const item of v.trocas || []) {
+      if (v.subtipo_vistoria && !v.subtipo_vistoria.includes(item.utilidade)) continue;
+      if (item.foto_antes) await addImageToDoc(item.foto_antes, `${item.utilidade}: antes da troca`);
+      if (item.foto_depois) await addImageToDoc(item.foto_depois, `${item.utilidade}: depois da troca`);
+    }
+  }
 
   // 1. Fotos de Reconfiguração de Equipamento (3 Antes e 3 Depois)
   if (isReconfiguracao && v.reconfiguracao) {
