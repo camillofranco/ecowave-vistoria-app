@@ -31,7 +31,10 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Test Inspection Lifecycle
+        run: npm run test:integration
 
       - name: Build Web App
         run: npm run build
@@ -62,7 +65,10 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Test Inspection Lifecycle
+        run: npm run test:integration
 
       - name: Build Web App
         run: npm run build
