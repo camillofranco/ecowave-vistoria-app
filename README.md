@@ -25,3 +25,12 @@ pnpm run dev
 ## Integração
 
 O portal armazena vistorias em tabelas e bucket próprios, separados dos relatórios mensais. A migração do portal deve ser aplicada antes de habilitar o envio em produção. Consulte [ANALISE_E_INTEGRACAO.md](./ANALISE_E_INTEGRACAO.md).
+
+## Correção 2.8.3 (13/11/2026)
+
+- Finalizar confirma a gravação local e abre o histórico. Use **Nova Vistoria** para outro atendimento; editar preserva o ID e o horário original.
+- Os dados locais permanecem no mesmo banco e origem. Não desinstale nem limpe armazenamento para atualizar.
+- A versão Android deste repositório carrega GitHub Pages; a atualização web não exige substituir o APK. Builds offline anteriores precisam ser identificados separadamente.
+- A Central de Atualizações bloqueia a recarga enquanto há alterações não salvas.
+
+Verificação: `npm run build`, `npm run test:integration` e `npm test` (Playwright/Chromium instalado). Os testes usam dados fictícios. O lint completo possui débitos anteriores; a correção não exige limpar dados reais.
