@@ -20,6 +20,30 @@ async function start(unit='101'){
 }
 async function finish(){await user.type(document.querySelector('textarea')!,'Parecer teste');await user.click(screen.getByRole('button',{name:'Finalizar Vistoria'}));await screen.findByRole('heading',{name:'Histórico de Vistorias'});}
 describe('fluxo de vistorias com banco IndexedDB',()=>{
+ it('troca registra antes/depois, volta sem perder dados e finaliza direto no parecer',async()=>{
+  render(<App/>);
+  await user.type(screen.getByPlaceholderText('Nome do Condomínio'),'TESTE TROCA');
+  await user.type(screen.getByPlaceholderText('Ex: 132'),'301');
+  await user.selectOptions(document.querySelector('select')!,'Troca de Equipamento');
+  await user.selectOptions(document.querySelectorAll('select')[1],'Troca Completa');
+  await user.click(screen.getByRole('button',{name:'Iniciar Vistoria'}));
+  await user.type(screen.getByLabelText('Série do medidor retirado'),'ANTIGO');
+  await user.type(screen.getByLabelText('Série do medidor instalado'),'NOVO');
+  await user.type(screen.getByLabelText('Série do transmissor retirado'),'123');
+  await user.type(screen.getByLabelText('Série do transmissor instalado'),'456');
+  await user.type(screen.getByLabelText('Leitura antes da troca (m³)'),'12.5');
+  await user.type(screen.getByLabelText('Leitura depois da troca (m³)'),'0');
+  await user.click(screen.getByRole('button',{name:'Avançar para Parecer'}));
+  expect(screen.getByRole('heading',{name:'Parecer Técnico & Assinaturas'})).toBeTruthy();
+  await user.click(screen.getByRole('button',{name:'Voltar ao Passo Anterior'}));
+  expect(screen.getByLabelText('Série do medidor instalado')).toHaveValue('NOVO');
+  await user.click(screen.getByRole('button',{name:'Avançar para Parecer'}));
+  await finish();
+  const saved=(await db.vistorias.toArray())[0];
+  expect(saved.tipo_vistoria).toBe('Troca de Equipamento');
+  expect(saved.trocas).toEqual([{utilidade:'AF',medidor_antes:'ANTIGO',medidor_depois:'NOVO',transmissor_antes:'123',transmissor_depois:'456',leitura_antes:'12.5',leitura_depois:'0'}]);
+ });
+
  it('salva duas consecutivas, com IDs/horários independentes e histórico preservado',async()=>{
  render(<App/>);await start();await finish();const first=(await db.vistorias.toArray())[0];
  vi.setSystemTime(new Date('2026-11-14T15:30:00Z'));await user.click(screen.getByRole('button',{name:'Nova Vistoria'}));await start('102');await finish();
